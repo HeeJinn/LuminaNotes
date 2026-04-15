@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.airbnb.lottie.compose.*
+import com.example.agenttest.R
 import com.example.agenttest.data.local.entity.NoteEntity
 import com.example.agenttest.ui.theme.NoteShapes
 import com.example.agenttest.ui.viewmodel.NoteFilter
@@ -517,29 +519,45 @@ fun NoteCard(
 
 @Composable
 fun EmptyState(searchQuery: String, filter: NoteFilter) {
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.empty))
+    val progress by animateLottieCompositionAsState(
+        composition,
+        iterations = LottieConstants.IterateForever
+    )
+
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            val icon = when {
-                searchQuery.isNotEmpty() -> Icons.Default.SearchOff
-                filter == NoteFilter.ARCHIVED -> Icons.Default.Archive
-                filter == NoteFilter.PINNED -> Icons.Default.PushPin
-                else -> Icons.Default.NoteAlt
+            if (searchQuery.isEmpty() && filter == NoteFilter.ALL) {
+                LottieAnimation(
+                    composition = composition,
+                    progress = { progress },
+                    modifier = Modifier.size(280.dp)
+                )
+            } else {
+                val icon = when {
+                    searchQuery.isNotEmpty() -> Icons.Default.SearchOff
+                    filter == NoteFilter.ARCHIVED -> Icons.Default.Archive
+                    filter == NoteFilter.PINNED -> Icons.Default.PushPin
+                    else -> Icons.Default.NoteAlt
+                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                )
             }
+            
             val text = when {
                 searchQuery.isNotEmpty() -> "No matching notes found"
                 filter == NoteFilter.ARCHIVED -> "No archived notes"
                 filter == NoteFilter.PINNED -> "No pinned notes"
                 else -> "Start your first note"
             }
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            )
+
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = text,

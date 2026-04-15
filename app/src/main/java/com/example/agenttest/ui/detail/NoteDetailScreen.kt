@@ -1,21 +1,28 @@
 package com.example.agenttest.ui.detail
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.agenttest.ui.home.DarkNoteColors
 import com.example.agenttest.ui.home.NoteColors
@@ -90,6 +97,24 @@ fun NoteDetailScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            FloatingToolbar(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .imePadding()
+            ) { action ->
+                // Basic markdown-like behavior for demonstration
+                // In a real app, this would use a proper Rich Text Editor state
+                when (action) {
+                    ToolbarAction.BOLD -> content += "**"
+                    ToolbarAction.ITALIC -> content += "*"
+                    ToolbarAction.H1 -> content += "\n# "
+                    ToolbarAction.H2 -> content += "\n## "
+                    ToolbarAction.LIST -> content += "\n- "
+                    else -> {}
+                }
+            }
         }
     ) { innerPadding ->
         Column(
@@ -191,6 +216,74 @@ fun NoteDetailScreen(
                     Text("Keep Editing")
                 }
             }
+        )
+    }
+}
+
+enum class ToolbarAction {
+    H1, H2, BOLD, ITALIC, UNDERLINE, LIST, CHECKLIST, IMAGE
+}
+
+@Composable
+fun FloatingToolbar(
+    modifier: Modifier = Modifier,
+    onAction: (ToolbarAction) -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .wrapContentWidth()
+            .height(56.dp)
+            .clip(CircleShape),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+        tonalElevation = 8.dp,
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .fillMaxHeight(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            ToolbarButton(Icons.Default.Title, "H1") { onAction(ToolbarAction.H1) }
+            ToolbarButton(Icons.Outlined.Title, "H2") { onAction(ToolbarAction.H2) }
+            VerticalDivider(
+                modifier = Modifier
+                    .height(24.dp)
+                    .padding(horizontal = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            ToolbarButton(Icons.Default.FormatBold, "Bold") { onAction(ToolbarAction.BOLD) }
+            ToolbarButton(Icons.Default.FormatItalic, "Italic") { onAction(ToolbarAction.ITALIC) }
+            ToolbarButton(Icons.Default.FormatUnderlined, "Underline") { onAction(ToolbarAction.UNDERLINE) }
+            VerticalDivider(
+                modifier = Modifier
+                    .height(24.dp)
+                    .padding(horizontal = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            ToolbarButton(Icons.Default.FormatListBulleted, "List") { onAction(ToolbarAction.LIST) }
+            ToolbarButton(Icons.Default.Checklist, "Checklist") { onAction(ToolbarAction.CHECKLIST) }
+            ToolbarButton(Icons.Default.AddPhotoAlternate, "Image") { onAction(ToolbarAction.IMAGE) }
+        }
+    }
+}
+
+@Composable
+fun ToolbarButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(40.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
         )
     }
 }
