@@ -84,17 +84,24 @@ class NoteViewModel @Inject constructor(
         }
     }
 
-    fun saveNote(id: String?, title: String, content: String) {
+    fun saveNote(id: String?, title: String, content: String, color: Int? = null, label: String? = null) {
         viewModelScope.launch {
             val existingNote = id?.let { noteDao.getNoteById(it) }
             val note = if (existingNote != null) {
                 existingNote.copy(
                     title = title,
                     content = content,
+                    color = color ?: existingNote.color,
+                    label = label ?: existingNote.label,
                     createdAt = System.currentTimeMillis() // Update last modified time
                 )
             } else {
-                NoteEntity(title = title, content = content)
+                NoteEntity(
+                    title = title,
+                    content = content,
+                    color = color ?: 0xFFFFFFFF.toInt(),
+                    label = label
+                )
             }
             noteDao.insertNote(note)
         }

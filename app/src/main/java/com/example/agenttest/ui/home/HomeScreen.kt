@@ -1,6 +1,9 @@
 package com.example.agenttest.ui.home
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -13,17 +16,15 @@ import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Archive
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material.icons.outlined.Unarchive
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.agenttest.data.local.entity.NoteEntity
@@ -33,6 +34,7 @@ import com.example.agenttest.ui.viewmodel.NoteViewModel
 import com.example.agenttest.util.ColorUtils
 import com.example.agenttest.util.DateUtils
 import com.example.agenttest.util.NoteMetadataUtils
+import com.example.agenttest.util.SmartContextUtils
 import kotlinx.coroutines.launch
 
 val NoteColors = listOf(
@@ -88,158 +90,158 @@ fun HomeScreen(
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
-            Column(modifier = Modifier.statusBarsPadding()) {
-                Text(
-                    text = when(currentFilter) {
-                        NoteFilter.ALL -> "My Notes"
-                        NoteFilter.PINNED -> "Pinned"
-                        NoteFilter.ARCHIVED -> "Archived"
-                    },
-                    style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp, vertical = 16.dp)
-                        .padding(top = 8.dp)
-                )
-                
-                SearchBar(
-                    inputField = {
-                        SearchBarDefaults.InputField(
-                            query = searchQuery,
-                            onQueryChange = { viewModel.onSearchQueryChange(it) },
-                            onSearch = { active = false },
-                            expanded = active,
-                            onExpandedChange = { active = it },
-                            placeholder = { Text("Search your notes", style = MaterialTheme.typography.bodyLarge) },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                            trailingIcon = {
-                                if (active || searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { 
-                                        if (searchQuery.isNotEmpty()) viewModel.onSearchQueryChange("") 
-                                        else active = false 
-                                    }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Close")
+                Column(modifier = Modifier.statusBarsPadding()) {
+                    Text(
+                        text = when(currentFilter) {
+                            NoteFilter.ALL -> "My Notes"
+                            NoteFilter.PINNED -> "Pinned"
+                            NoteFilter.ARCHIVED -> "Archived"
+                        },
+                        style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp, vertical = 16.dp)
+                            .padding(top = 8.dp)
+                    )
+                    
+                    SearchBar(
+                        inputField = {
+                            SearchBarDefaults.InputField(
+                                query = searchQuery,
+                                onQueryChange = { viewModel.onSearchQueryChange(it) },
+                                onSearch = { active = false },
+                                expanded = active,
+                                onExpandedChange = { active = it },
+                                placeholder = { Text("Search your notes", style = MaterialTheme.typography.bodyLarge) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                trailingIcon = {
+                                    if (active || searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { 
+                                            if (searchQuery.isNotEmpty()) viewModel.onSearchQueryChange("") 
+                                            else active = false 
+                                        }) {
+                                            Icon(Icons.Default.Close, contentDescription = "Close")
+                                        }
                                     }
                                 }
+                            )
+                        },
+                        expanded = active,
+                        onExpandedChange = { active = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = if (active) 0.dp else 16.dp)
+                            .padding(bottom = if (active) 0.dp else 16.dp)
+                    ) {
+                        LazyVerticalStaggeredGrid(
+                            columns = StaggeredGridCells.Fixed(1),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalItemSpacing = 8.dp,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(notes, key = { it.id }) { note ->
+                                NoteSearchResultItem(note, onNoteClick)
                             }
-                        )
-                    },
-                    expanded = active,
-                    onExpandedChange = { active = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = if (active) 0.dp else 16.dp)
-                        .padding(bottom = if (active) 0.dp else 16.dp)
-                ) {
+                        }
+                    }
+
+                    if (!active) {
+                        FilterChips(currentFilter, onFilterSelected = { viewModel.setFilter(it) })
+                    }
+                }
+            },
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    onClick = onAddNoteClick,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("New Note", style = MaterialTheme.typography.labelLarge) },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation()
+                )
+            }
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding)) {
+                if (notes.isEmpty()) {
+                    EmptyState(searchQuery, currentFilter)
+                } else {
                     LazyVerticalStaggeredGrid(
-                        columns = StaggeredGridCells.Fixed(1),
+                        columns = StaggeredGridCells.Fixed(2),
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
-                        verticalItemSpacing = 8.dp,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalItemSpacing = 12.dp,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(notes, key = { it.id }) { note ->
-                            NoteSearchResultItem(note, onNoteClick)
+                            NoteCard(
+                                note = note,
+                                onClick = { onNoteClick(note.id) },
+                                onLongClick = { showOptionsForNote = note },
+                                onPinClick = { viewModel.togglePin(note) }
+                            )
                         }
                     }
                 }
-
-                if (!active) {
-                    FilterChips(currentFilter, onFilterSelected = { viewModel.setFilter(it) })
-                }
             }
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAddNoteClick,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("New Note", style = MaterialTheme.typography.labelLarge) },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                elevation = FloatingActionButtonDefaults.bottomAppBarFabElevation()
+        }
+
+        if (showOptionsForNote != null) {
+            NoteOptionsSheet(
+                note = showOptionsForNote!!,
+                onDismiss = { showOptionsForNote = null },
+                onPinToggle = { viewModel.togglePin(it); showOptionsForNote = null },
+                onArchiveToggle = { 
+                    val note = it
+                    viewModel.toggleArchive(note)
+                    showOptionsForNote = null
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = if (note.isArchived) "Note unarchived" else "Note archived",
+                            actionLabel = "Undo",
+                            duration = SnackbarDuration.Short
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.toggleArchive(note)
+                        }
+                    }
+                },
+                onDelete = { noteToDelete = it; showOptionsForNote = null },
+                onColorPicker = { showColorPickerForNote = it; showOptionsForNote = null }
             )
         }
-    ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
-            if (notes.isEmpty()) {
-                EmptyState(searchQuery, currentFilter)
-            } else {
-                LazyVerticalStaggeredGrid(
-                    columns = StaggeredGridCells.Fixed(2),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalItemSpacing = 12.dp,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(notes, key = { it.id }) { note ->
-                        NoteCard(
-                            note = note,
-                            onClick = { onNoteClick(note.id) },
-                            onLongClick = { showOptionsForNote = note },
-                            onPinClick = { viewModel.togglePin(note) }
-                        )
-                    }
+
+        if (showColorPickerForNote != null) {
+            ColorPickerSheet(
+                note = showColorPickerForNote!!,
+                onDismiss = { showColorPickerForNote = null },
+                onColorSelected = { note, color -> 
+                    viewModel.updateNoteColor(note, color.toArgb())
+                    showColorPickerForNote = null
                 }
-            }
+            )
+        }
+
+        if (noteToDelete != null) {
+            DeleteConfirmationDialog(
+                onConfirm = {
+                    val note = noteToDelete!!
+                    viewModel.deleteNote(note)
+                    noteToDelete = null
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = "Note deleted",
+                            actionLabel = "Undo",
+                            duration = SnackbarDuration.Short
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.insertNote(note)
+                        }
+                    }
+                },
+                onDismiss = { noteToDelete = null }
+            )
         }
     }
-
-    if (showOptionsForNote != null) {
-        NoteOptionsSheet(
-            note = showOptionsForNote!!,
-            onDismiss = { showOptionsForNote = null },
-            onPinToggle = { viewModel.togglePin(it); showOptionsForNote = null },
-            onArchiveToggle = { 
-                val note = it
-                viewModel.toggleArchive(note)
-                showOptionsForNote = null
-                scope.launch {
-                    val result = snackbarHostState.showSnackbar(
-                        message = if (note.isArchived) "Note unarchived" else "Note archived",
-                        actionLabel = "Undo",
-                        duration = SnackbarDuration.Short
-                    )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        viewModel.toggleArchive(note)
-                    }
-                }
-            },
-            onDelete = { noteToDelete = it; showOptionsForNote = null },
-            onColorPicker = { showColorPickerForNote = it; showOptionsForNote = null }
-        )
-    }
-
-    if (showColorPickerForNote != null) {
-        ColorPickerSheet(
-            note = showColorPickerForNote!!,
-            onDismiss = { showColorPickerForNote = null },
-            onColorSelected = { note, color -> 
-                viewModel.updateNoteColor(note, color.toArgb())
-                showColorPickerForNote = null
-            }
-        )
-    }
-
-    if (noteToDelete != null) {
-        DeleteConfirmationDialog(
-            onConfirm = {
-                val note = noteToDelete!!
-                viewModel.deleteNote(note)
-                noteToDelete = null
-                scope.launch {
-                    val result = snackbarHostState.showSnackbar(
-                        message = "Note deleted",
-                        actionLabel = "Undo",
-                        duration = SnackbarDuration.Short
-                    )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        viewModel.insertNote(note)
-                    }
-                }
-            },
-            onDismiss = { noteToDelete = null }
-        )
-    }
-}
 }
 
 @Composable
@@ -400,6 +402,19 @@ fun NoteCard(
     val tertiaryContentColor = if (isCustomColor) ColorUtils.getSecondaryContrastingColor(cardColor) else MaterialTheme.colorScheme.outline
     val noteShape = NoteShapes.getShapeForColor(cardColor)
     val bodyStyle = NoteShapes.getTextStyleForColor(cardColor, MaterialTheme.typography.bodyMedium)
+    
+    val context = LocalContext.current
+    val smartActions = remember(note.content) { SmartContextUtils.extractActions(note.content) }
+
+    val atmosphericBrush = if (isCustomColor) {
+        Brush.linearGradient(
+            colors = listOf(
+                cardColor,
+                cardColor.copy(alpha = 0.85f),
+                cardColor.copy(alpha = 0.95f)
+            )
+        )
+    } else null
 
     OutlinedCard(
         modifier = Modifier
@@ -410,59 +425,92 @@ fun NoteCard(
             ),
         shape = noteShape,
         colors = CardDefaults.outlinedCardColors(
-            containerColor = cardColor
+            containerColor = if (isCustomColor) Color.Transparent else MaterialTheme.colorScheme.surface
         ),
         border = if (note.isPinned) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
                  else androidx.compose.foundation.BorderStroke(1.dp, if (isDark) Color.White.copy(alpha = 0.12f) else MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-            Row(
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
+        Box(modifier = Modifier.then(
+            if (atmosphericBrush != null) Modifier.background(atmosphericBrush) else Modifier
+        )) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
             ) {
-                Text(
-                    text = note.title,
-                    style = NoteShapes.getTextStyleForColor(cardColor, MaterialTheme.typography.titleMedium),
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
-                    color = contentColor
-                )
-                IconButton(
-                    onClick = onPinClick,
-                    modifier = Modifier.size(24.dp)
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = if (note.isPinned) Icons.Default.PushPin else Icons.Outlined.PushPin,
-                        contentDescription = "Pin",
-                        tint = if (note.isPinned) MaterialTheme.colorScheme.primary 
-                               else secondaryContentColor,
-                        modifier = Modifier.size(18.dp)
+                    Text(
+                        text = note.title,
+                        style = NoteShapes.getTextStyleForColor(cardColor, MaterialTheme.typography.titleMedium),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 2,
+                        color = contentColor
+                    )
+                    IconButton(
+                        onClick = onPinClick,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (note.isPinned) Icons.Default.PushPin else Icons.Outlined.PushPin,
+                            contentDescription = "Pin",
+                            tint = if (note.isPinned) MaterialTheme.colorScheme.primary 
+                                   else secondaryContentColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                
+                if (note.content.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = note.content,
+                        style = bodyStyle,
+                        maxLines = 6,
+                        color = secondaryContentColor
                     )
                 }
-            }
-            
-            if (note.content.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
+
+                if (smartActions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        smartActions.forEach { action ->
+                            AssistChip(
+                                onClick = {
+                                    val intent = when (action.type) {
+                                        SmartContextUtils.ActionType.URL -> Intent(Intent.ACTION_VIEW, Uri.parse(action.data))
+                                        SmartContextUtils.ActionType.EMAIL -> Intent(Intent.ACTION_SENDTO, Uri.fromParts("mailto", action.data, null))
+                                        SmartContextUtils.ActionType.PHONE -> Intent(Intent.ACTION_DIAL, Uri.parse("tel:${action.data}"))
+                                    }
+                                    try { context.startActivity(intent) } catch (e: Exception) {}
+                                },
+                                label = { Text(action.label, style = MaterialTheme.typography.labelSmall) },
+                                leadingIcon = { Icon(action.icon, null, modifier = Modifier.size(14.dp)) },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = contentColor.copy(alpha = 0.1f),
+                                    labelColor = contentColor,
+                                    leadingIconContentColor = contentColor
+                                ),
+                                border = null
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = note.content,
-                    style = bodyStyle,
-                    maxLines = 6,
-                    color = secondaryContentColor
+                    text = DateUtils.formatTimestamp(note.createdAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tertiaryContentColor
                 )
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = DateUtils.formatTimestamp(note.createdAt),
-                style = MaterialTheme.typography.labelSmall,
-                color = tertiaryContentColor
-            )
         }
     }
 }

@@ -19,22 +19,22 @@ import com.example.agenttest.ui.viewmodel.NoteViewModel
 import kotlinx.serialization.Serializable
 
 @Serializable
-object HomeRoute
+object LuminaHomeRoute
 
 @Serializable
-data class NoteDetailRoute(val id: String? = null)
+data class LuminaNoteDetailRoute(val id: String? = null)
 
 @Serializable
-data class NoteViewRoute(val id: String)
+data class LuminaNoteViewRoute(val id: String)
 
 @Composable
-fun NavGraph() {
+fun LuminaAppNavGraph() {
     val navController = rememberNavController()
     val viewModel: NoteViewModel = hiltViewModel()
 
     NavHost(
         navController = navController,
-        startDestination = HomeRoute,
+        startDestination = LuminaHomeRoute,
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
@@ -63,24 +63,24 @@ fun NavGraph() {
             ) + fadeOut(animationSpec = tween(400))
         }
     ) {
-        composable<HomeRoute> {
+        composable<LuminaHomeRoute> {
             HomeScreen(
-                onNoteClick = { id -> navController.navigate(NoteViewRoute(id)) },
-                onAddNoteClick = { navController.navigate(NoteDetailRoute()) },
+                onNoteClick = { id -> navController.navigate(LuminaNoteViewRoute(id)) },
+                onAddNoteClick = { navController.navigate(LuminaNoteDetailRoute()) },
                 viewModel = viewModel
             )
         }
-        composable<NoteViewRoute> { backStackEntry ->
-            val route: NoteViewRoute = backStackEntry.toRoute()
+        composable<LuminaNoteViewRoute> { backStackEntry ->
+            val route: LuminaNoteViewRoute = backStackEntry.toRoute()
             NoteViewScreen(
                 noteId = route.id,
                 onBackClick = { navController.popBackStack() },
-                onEditClick = { id -> navController.navigate(NoteDetailRoute(id)) },
+                onEditClick = { id -> navController.navigate(LuminaNoteDetailRoute(id)) },
                 viewModel = viewModel
             )
         }
-        composable<NoteDetailRoute> { backStackEntry ->
-            val route: NoteDetailRoute = backStackEntry.toRoute()
+        composable<LuminaNoteDetailRoute> { backStackEntry ->
+            val route: LuminaNoteDetailRoute = backStackEntry.toRoute()
             NoteDetailScreen(
                 noteId = route.id,
                 onBackClick = { navController.popBackStack() },

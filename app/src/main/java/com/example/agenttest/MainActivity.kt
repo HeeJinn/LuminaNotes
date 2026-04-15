@@ -11,7 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.example.agenttest.ui.navigation.NavGraph
+import com.example.agenttest.ui.navigation.LuminaAppNavGraph
 import com.example.agenttest.ui.theme.AgentTestTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AgentTestTheme {
-                NavGraph()
+                LuminaAppNavGraph()
             }
         }
     }
