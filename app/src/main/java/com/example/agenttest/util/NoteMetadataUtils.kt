@@ -34,4 +34,14 @@ object NoteMetadataUtils {
             else -> null
         }
     }
+
+    fun stripHtml(html: String): String {
+        return html.replace("<[^>]*>".toRegex(), " ")
+            .replace("&nbsp;", " ")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+            .trim()
+            .replace("\\s+".toRegex(), " ")
+    }
 }

@@ -382,7 +382,7 @@ fun ColorPickerSheet(
 fun NoteSearchResultItem(note: NoteEntity, onNoteClick: (String) -> Unit) {
     ListItem(
         headlineContent = { Text(note.title, fontWeight = FontWeight.SemiBold) },
-        supportingContent = { Text(note.content, maxLines = 1) },
+        supportingContent = { Text(NoteMetadataUtils.stripHtml(note.content), maxLines = 1) },
         trailingContent = { Text(DateUtils.formatTimestamp(note.createdAt), style = MaterialTheme.typography.labelSmall) },
         modifier = Modifier.clickable { onNoteClick(note.id) }
     )
@@ -470,7 +470,7 @@ fun NoteCard(
                 if (note.content.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = note.content,
+                        text = NoteMetadataUtils.stripHtml(note.content),
                         style = bodyStyle,
                         maxLines = 6,
                         color = secondaryContentColor

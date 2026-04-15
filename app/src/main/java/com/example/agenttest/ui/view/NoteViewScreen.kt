@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.mohamedrejeb.richeditor.model.rememberRichTextState
+import com.mohamedrejeb.richeditor.ui.material3.RichText
 import com.example.agenttest.ui.theme.NoteShapes
 import com.example.agenttest.ui.viewmodel.NoteViewModel
 import com.example.agenttest.util.ColorUtils
@@ -152,8 +154,13 @@ fun NoteViewScreen(
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                Text(
-                    text = note.content,
+                val richTextState = rememberRichTextState()
+                LaunchedEffect(note.content) {
+                    richTextState.setHtml(note.content)
+                }
+
+                RichText(
+                    state = richTextState,
                     style = bodyStyle.copy(lineHeight = bodyStyle.lineHeight * 1.2),
                     color = contentColor
                 )

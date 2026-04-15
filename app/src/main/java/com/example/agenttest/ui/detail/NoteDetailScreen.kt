@@ -11,6 +11,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -47,11 +49,66 @@ fun NoteDetailScreen(
 
     var title by remember { mutableStateOf(note?.title ?: "") }
     val richTextState = rememberRichTextState()
+
+    // Undo/Redo History State
+    val undoStack = remember { mutableStateListOf<Pair<String, String>>() }
+    val redoStack = remember { mutableStateListOf<Pair<String, String>>() }
+    var isInternalUpdate by remember { mutableStateOf(false) }
+
+    fun pushToHistory(newTitle: String, newContent: String) {
+        if (isInternalUpdate) return
+        
+        val lastTitle = if (undoStack.isEmpty()) note?.title ?: "" else undoStack.last().first
+        val lastContent = if (undoStack.isEmpty()) note?.content ?: "" else undoStack.last().second
+        
+        if (newTitle != lastTitle || newContent != lastContent) {
+            undoStack.add(lastTitle to lastContent)
+            if (undoStack.size > 50) undoStack.removeAt(0)
+            redoStack.clear()
+        }
+    }
+
+    fun undo() {
+        if (undoStack.isNotEmpty()) {
+            isInternalUpdate = true
+            val currentState = title to richTextState.toHtml()
+            redoStack.add(currentState)
+            val lastState = undoStack.removeAt(undoStack.size - 1)
+            title = lastState.first
+            richTextState.setHtml(lastState.second)
+            isInternalUpdate = false
+        }
+    }
+
+    fun redo() {
+        if (redoStack.isNotEmpty()) {
+            isInternalUpdate = true
+            val currentState = title to richTextState.toHtml()
+            undoStack.add(currentState)
+            val nextState = redoStack.removeAt(redoStack.size - 1)
+            title = nextState.first
+            richTextState.setHtml(nextState.second)
+            isInternalUpdate = false
+        }
+    }
+
+    // Observe changes for history
+    LaunchedEffect(title) {
+        pushToHistory(title, richTextState.toHtml())
+    }
+
+    LaunchedEffect(richTextState.annotatedString) {
+        // Debounce to avoid spamming the history with every character
+        kotlinx.coroutines.delay(500)
+        pushToHistory(title, richTextState.toHtml())
+    }
     
     // Load initial content
     LaunchedEffect(note) {
         if (note != null && richTextState.annotatedString.text.isEmpty()) {
+            isInternalUpdate = true
             richTextState.setHtml(note.content)
+            isInternalUpdate = false
         }
     }
 
@@ -117,10 +174,15 @@ fun NoteDetailScreen(
                 modifier = Modifier
                     .padding(16.dp)
                     .imePadding(),
-                richTextState = richTextState
+                richTextState = richTextState,
+                onUndo = { undo() },
+                onRedo = { redo() },
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = redoStack.isNotEmpty()
             )
         }
-    ) { innerPadding ->
+    )
+{ innerPadding ->
         Column(
             modifier = Modifier
                 .padding(innerPadding)
@@ -228,7 +290,11 @@ enum class ToolbarAction {
 @Composable
 fun FloatingToolbar(
     modifier: Modifier = Modifier,
-    richTextState: RichTextState
+    richTextState: RichTextState,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
+    canUndo: Boolean,
+    canRedo: Boolean
 ) {
     val h1Size = MaterialTheme.typography.headlineLarge.fontSize
     val h2Size = MaterialTheme.typography.titleLarge.fontSize
@@ -298,6 +364,27 @@ fun FloatingToolbar(
                 contentDescription = "List",
                 isActive = false 
             ) { richTextState.toggleUnorderedList() }
+
+            VerticalDivider(
+                modifier = Modifier
+                    .height(24.dp)
+                    .padding(horizontal = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            ToolbarButton(
+                icon = Icons.AutoMirrored.Filled.Undo,
+                contentDescription = "Undo",
+                isActive = false,
+                enabled = canUndo
+            ) { onUndo() }
+
+            ToolbarButton(
+                icon = Icons.AutoMirrored.Filled.Redo,
+                contentDescription = "Redo",
+                isActive = false,
+                enabled = canRedo
+            ) { onRedo() }
             
             ToolbarButton(
                 icon = Icons.Default.Checklist,
@@ -313,10 +400,12 @@ fun ToolbarButton(
     icon: ImageVector,
     contentDescription: String,
     isActive: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     IconButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
@@ -325,7 +414,11 @@ fun ToolbarButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = when {
+                !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                isActive -> MaterialTheme.colorScheme.onSecondaryContainer
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
             modifier = Modifier.size(20.dp)
         )
     }
