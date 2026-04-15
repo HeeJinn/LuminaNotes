@@ -32,6 +32,7 @@ import com.example.agenttest.ui.viewmodel.NoteFilter
 import com.example.agenttest.ui.viewmodel.NoteViewModel
 import com.example.agenttest.util.ColorUtils
 import com.example.agenttest.util.DateUtils
+import com.example.agenttest.util.NoteMetadataUtils
 import kotlinx.coroutines.launch
 
 val NoteColors = listOf(
@@ -398,6 +399,7 @@ fun NoteCard(
     val secondaryContentColor = if (isCustomColor) ColorUtils.getSecondaryContrastingColor(cardColor) else MaterialTheme.colorScheme.onSurfaceVariant
     val tertiaryContentColor = if (isCustomColor) ColorUtils.getSecondaryContrastingColor(cardColor) else MaterialTheme.colorScheme.outline
     val noteShape = NoteShapes.getShapeForColor(cardColor)
+    val bodyStyle = NoteShapes.getTextStyleForColor(cardColor, MaterialTheme.typography.bodyMedium)
 
     OutlinedCard(
         modifier = Modifier
@@ -425,7 +427,7 @@ fun NoteCard(
             ) {
                 Text(
                     text = note.title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = NoteShapes.getTextStyleForColor(cardColor, MaterialTheme.typography.titleMedium),
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                     maxLines = 2,
@@ -449,7 +451,7 @@ fun NoteCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = note.content,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = bodyStyle,
                     maxLines = 6,
                     color = secondaryContentColor
                 )

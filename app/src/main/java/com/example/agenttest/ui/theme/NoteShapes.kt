@@ -5,6 +5,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 object NoteShapes {
@@ -17,6 +20,16 @@ object NoteShapes {
             0xFFCCFF90.toULong() -> RoundedCornerShape(topStart = 4.dp, topEnd = 28.dp, bottomStart = 28.dp, bottomEnd = 4.dp) // Green - Growth/Leaf
             0xFFA7FFEB.toULong() -> RoundedCornerShape(8.dp) // Teal
             else -> MaterialTheme.shapes.extraLarge // Default
+        }
+    }
+
+    @Composable
+    fun getTextStyleForColor(color: Color, baseStyle: TextStyle): TextStyle {
+        return when (color.value) {
+            0xFFF28B82.toULong() -> baseStyle.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.ExtraBold) // Urgent
+            0xFFFFF475.toULong(), 0xFFFBBC04.toULong() -> baseStyle.copy(fontFamily = FontFamily.Serif) // Creative
+            0xFFCCFF90.toULong() -> baseStyle.copy(fontFamily = FontFamily.Monospace) // Structured
+            else -> baseStyle
         }
     }
 }
