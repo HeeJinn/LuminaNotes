@@ -20,10 +20,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.mohamedrejeb.richeditor.model.RichTextState
+import com.mohamedrejeb.richeditor.model.rememberRichTextState
+import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
+import com.mohamedrejeb.richeditor.ui.material3.RichTextEditorDefaults
 import com.example.agenttest.ui.home.DarkNoteColors
 import com.example.agenttest.ui.home.NoteColors
 import com.example.agenttest.ui.viewmodel.NoteViewModel
@@ -40,17 +45,25 @@ fun NoteDetailScreen(
     val note = notes.find { it.id == noteId }
 
     var title by remember { mutableStateOf(note?.title ?: "") }
-    var content by remember { mutableStateOf(note?.content ?: "") }
+    val richTextState = rememberRichTextState()
+    
+    // Load initial content
+    LaunchedEffect(note) {
+        if (note != null && richTextState.annotatedString.text.isEmpty()) {
+            richTextState.setHtml(note.content)
+        }
+    }
+
     var color by remember { mutableStateOf(note?.color ?: 0xFFFFFFFF.toInt()) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
 
-    val hasChanges = title != (note?.title ?: "") || content != (note?.content ?: "") || color != (note?.color ?: 0xFFFFFFFF.toInt())
+    val hasChanges = title != (note?.title ?: "") || richTextState.toHtml() != (note?.content ?: "") || color != (note?.color ?: 0xFFFFFFFF.toInt())
 
     // Auto-suggest color based on content
-    LaunchedEffect(title, content) {
+    LaunchedEffect(title, richTextState.annotatedString.text) {
         if (noteId == null && color == 0xFFFFFFFF.toInt()) {
-            NoteMetadataUtils.suggestColor(title, content)?.let { suggested ->
+            NoteMetadataUtils.suggestColor(title, richTextState.annotatedString.text)?.let { suggested ->
                 color = suggested
             }
         }
@@ -79,11 +92,11 @@ fun NoteDetailScreen(
                     }
                     Button(
                         onClick = {
-                            if (title.isNotBlank() || content.isNotBlank()) {
+                            if (title.isNotBlank() || richTextState.annotatedString.text.isNotBlank()) {
                                 viewModel.saveNote(
                                     noteId,
                                     title,
-                                    content,
+                                    richTextState.toHtml(),
                                     color = color
                                 )
                             }
@@ -102,19 +115,9 @@ fun NoteDetailScreen(
             FloatingToolbar(
                 modifier = Modifier
                     .padding(16.dp)
-                    .imePadding()
-            ) { action ->
-                // Basic markdown-like behavior for demonstration
-                // In a real app, this would use a proper Rich Text Editor state
-                when (action) {
-                    ToolbarAction.BOLD -> content += "**"
-                    ToolbarAction.ITALIC -> content += "*"
-                    ToolbarAction.H1 -> content += "\n# "
-                    ToolbarAction.H2 -> content += "\n## "
-                    ToolbarAction.LIST -> content += "\n- "
-                    else -> {}
-                }
-            }
+                    .imePadding(),
+                richTextState = richTextState
+            )
         }
     ) { innerPadding ->
         Column(
@@ -124,7 +127,7 @@ fun NoteDetailScreen(
                 .verticalScroll(rememberScrollState())
                 .fillMaxSize()
         ) {
-            val growthStage = NoteMetadataUtils.getGrowthStage(content)
+            val growthStage = NoteMetadataUtils.getGrowthStage(richTextState.annotatedString.text)
             val growthInfo = when(growthStage) {
                 NoteMetadataUtils.GrowthStage.SEED -> "🌱 Seedling"
                 NoteMetadataUtils.GrowthStage.SPROUT -> "🌿 Sprouting"
@@ -154,19 +157,16 @@ fun NoteDetailScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            TextField(
-                value = content,
-                onValueChange = { content = it },
+            RichTextEditor(
+                state = richTextState,
                 placeholder = { Text("Start typing...", style = MaterialTheme.typography.bodyLarge) },
                 textStyle = MaterialTheme.typography.bodyLarge,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
+                colors = RichTextEditorDefaults.richTextEditorColors(
+                    containerColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 10
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -227,8 +227,11 @@ enum class ToolbarAction {
 @Composable
 fun FloatingToolbar(
     modifier: Modifier = Modifier,
-    onAction: (ToolbarAction) -> Unit
+    richTextState: RichTextState
 ) {
+    val h1Size = MaterialTheme.typography.headlineLarge.fontSize
+    val h2Size = MaterialTheme.typography.titleLarge.fontSize
+
     Surface(
         modifier = modifier
             .wrapContentWidth()
@@ -245,26 +248,61 @@ fun FloatingToolbar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            ToolbarButton(Icons.Default.Title, "H1") { onAction(ToolbarAction.H1) }
-            ToolbarButton(Icons.Outlined.Title, "H2") { onAction(ToolbarAction.H2) }
+            ToolbarButton(
+                icon = Icons.Default.Title,
+                contentDescription = "Title",
+                isActive = false
+            ) { richTextState.toggleSpanStyle(SpanStyle(fontSize = h1Size)) }
+            
+            ToolbarButton(
+                icon = Icons.Outlined.Title,
+                contentDescription = "Subtitle",
+                isActive = false
+            ) { richTextState.toggleSpanStyle(SpanStyle(fontSize = h2Size)) }
+            
             VerticalDivider(
                 modifier = Modifier
                     .height(24.dp)
                     .padding(horizontal = 4.dp),
                 color = MaterialTheme.colorScheme.outlineVariant
             )
-            ToolbarButton(Icons.Default.FormatBold, "Bold") { onAction(ToolbarAction.BOLD) }
-            ToolbarButton(Icons.Default.FormatItalic, "Italic") { onAction(ToolbarAction.ITALIC) }
-            ToolbarButton(Icons.Default.FormatUnderlined, "Underline") { onAction(ToolbarAction.UNDERLINE) }
+            
+            ToolbarButton(
+                icon = Icons.Default.FormatBold,
+                contentDescription = "Bold",
+                isActive = richTextState.currentSpanStyle.fontWeight == FontWeight.Bold
+            ) { richTextState.toggleSpanStyle(SpanStyle(fontWeight = FontWeight.Bold)) }
+            
+            ToolbarButton(
+                icon = Icons.Default.FormatItalic,
+                contentDescription = "Italic",
+                isActive = richTextState.currentSpanStyle.fontStyle == FontStyle.Italic
+            ) { richTextState.toggleSpanStyle(SpanStyle(fontStyle = FontStyle.Italic)) }
+            
+            ToolbarButton(
+                icon = Icons.Default.FormatUnderlined,
+                contentDescription = "Underline",
+                isActive = richTextState.currentSpanStyle.textDecoration == TextDecoration.Underline
+            ) { richTextState.toggleSpanStyle(SpanStyle(textDecoration = TextDecoration.Underline)) }
+            
             VerticalDivider(
                 modifier = Modifier
                     .height(24.dp)
                     .padding(horizontal = 4.dp),
                 color = MaterialTheme.colorScheme.outlineVariant
             )
-            ToolbarButton(Icons.Default.FormatListBulleted, "List") { onAction(ToolbarAction.LIST) }
-            ToolbarButton(Icons.Default.Checklist, "Checklist") { onAction(ToolbarAction.CHECKLIST) }
-            ToolbarButton(Icons.Default.AddPhotoAlternate, "Image") { onAction(ToolbarAction.IMAGE) }
+            
+            ToolbarButton(
+                icon = Icons.AutoMirrored.Filled.List,
+                contentDescription = "List",
+                isActive = false 
+            ) { richTextState.toggleUnorderedList() }
+            
+            ToolbarButton(
+                icon = Icons.Default.Checklist,
+                contentDescription = "Checklist",
+                isActive = false
+            ) { }
         }
     }
 }
@@ -273,16 +311,20 @@ fun FloatingToolbar(
 fun ToolbarButton(
     icon: ImageVector,
     contentDescription: String,
+    isActive: Boolean = false,
     onClick: () -> Unit
 ) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier.size(40.dp)
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(if (isActive) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
     }

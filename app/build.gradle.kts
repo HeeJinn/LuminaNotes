@@ -67,6 +67,9 @@ dependencies {
     // Lottie
     implementation(libs.lottie.compose)
 
+    // Rich Editor
+    implementation(libs.richeditor.compose)
+
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
