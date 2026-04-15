@@ -1,25 +1,34 @@
 package com.example.agenttest.ui.detail
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Redo
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import com.example.agenttest.data.local.entity.NoteEntity
-import com.example.agenttest.ui.theme.NoteShapes
+import com.example.agenttest.ui.home.DarkNoteColors
+import com.example.agenttest.ui.home.NoteColors
 import com.example.agenttest.ui.viewmodel.NoteViewModel
+import com.example.agenttest.util.NoteMetadataUtils
 
 data class NoteState(val title: String, val content: String)
 
@@ -35,54 +44,20 @@ fun NoteDetailScreen(
 
     var title by remember { mutableStateOf(note?.title ?: "") }
     var content by remember { mutableStateOf(note?.content ?: "") }
-
-    // Undo/Redo State
-    var undoStack by remember { mutableStateOf(listOf<NoteState>()) }
-    var redoStack by remember { mutableStateOf(listOf<NoteState>()) }
-    var lastSavedState by remember { mutableStateOf(NoteState(title, content)) }
-
-    // Update state when note is loaded for the first time
-    LaunchedEffect(note) {
-        if (note != null && title.isEmpty() && content.isEmpty()) {
-            title = note.title
-            content = note.content
-            lastSavedState = NoteState(title, content)
-        }
-    }
-
-    fun pushToHistory(newTitle: String, newContent: String) {
-        val currentState = NoteState(title, content)
-        if (currentState != NoteState(newTitle, newContent)) {
-            undoStack = undoStack + currentState
-            redoStack = emptyList()
-            title = newTitle
-            content = newContent
-        }
-    }
-
-    fun undo() {
-        if (undoStack.isNotEmpty()) {
-            val prevState = undoStack.last()
-            undoStack = undoStack.dropLast(1)
-            redoStack = redoStack + NoteState(title, content)
-            title = prevState.title
-            content = prevState.content
-        }
-    }
-
-    fun redo() {
-        if (redoStack.isNotEmpty()) {
-            val nextState = redoStack.last()
-            redoStack = redoStack.dropLast(1)
-            undoStack = undoStack + NoteState(title, content)
-            title = nextState.title
-            content = nextState.content
-        }
-    }
-
+    var color by remember { mutableStateOf(note?.color ?: 0xFFFFFFFF.toInt()) }
     var showDiscardDialog by remember { mutableStateOf(false) }
+    var showColorPicker by remember { mutableStateOf(false) }
 
-    val hasChanges = title != (note?.title ?: "") || content != (note?.content ?: "")
+    val hasChanges = title != (note?.title ?: "") || content != (note?.content ?: "") || color != (note?.color ?: 0xFFFFFFFF.toInt())
+
+    // Auto-suggest color based on content
+    LaunchedEffect(title, content) {
+        if (noteId == null && color == 0xFFFFFFFF.toInt()) {
+            NoteMetadataUtils.suggestColor(title, content)?.let { suggested ->
+                color = suggested
+            }
+        }
+    }
 
     val handleBack = {
         if (hasChanges) {
@@ -98,49 +73,21 @@ fun NoteDetailScreen(
                 title = { },
                 navigationIcon = {
                     IconButton(onClick = handleBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    // Undo Button - Expressive Style
-                    FilledTonalIconButton(
-                        onClick = { undo() },
-                        enabled = undoStack.isNotEmpty(),
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(topStart = 16.dp, bottomEnd = 16.dp, topEnd = 4.dp, bottomStart = 4.dp)),
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-                        )
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                    IconButton(onClick = { showColorPicker = true }) {
+                        Icon(Icons.Default.Palette, contentDescription = "Color")
                     }
-
-                    Spacer(Modifier.width(8.dp))
-
-                    // Redo Button - Expressive Style
-                    FilledTonalIconButton(
-                        onClick = { redo() },
-                        enabled = redoStack.isNotEmpty(),
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(topEnd = 16.dp, bottomStart = 16.dp, topStart = 4.dp, bottomEnd = 4.dp)),
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
-                        )
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
-                    }
-
-                    Spacer(Modifier.width(12.dp))
-
                     Button(
                         onClick = {
                             if (title.isNotBlank() || content.isNotBlank()) {
                                 viewModel.saveNote(
                                     noteId,
                                     title,
-                                    content
+                                    content,
+                                    color = color
                                 )
                             }
                             onBackClick()
@@ -153,6 +100,24 @@ fun NoteDetailScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            FloatingToolbar(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .imePadding()
+            ) { action ->
+                // Basic markdown-like behavior for demonstration
+                // In a real app, this would use a proper Rich Text Editor state
+                when (action) {
+                    ToolbarAction.BOLD -> content += "**"
+                    ToolbarAction.ITALIC -> content += "*"
+                    ToolbarAction.H1 -> content += "\n# "
+                    ToolbarAction.H2 -> content += "\n## "
+                    ToolbarAction.LIST -> content += "\n- "
+                    else -> {}
+                }
+            }
         }
     ) { innerPadding ->
         Column(
@@ -162,6 +127,20 @@ fun NoteDetailScreen(
                 .verticalScroll(rememberScrollState())
                 .fillMaxSize()
         ) {
+            val growthStage = NoteMetadataUtils.getGrowthStage(content)
+            val growthInfo = when(growthStage) {
+                NoteMetadataUtils.GrowthStage.SEED -> "🌱 Seedling"
+                NoteMetadataUtils.GrowthStage.SPROUT -> "🌿 Sprouting"
+                NoteMetadataUtils.GrowthStage.BLOSSOM -> "🌸 Blossoming"
+            }
+            
+            Text(
+                text = growthInfo,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
             TextField(
                 value = title,
                 onValueChange = { pushToHistory(it, content) },
@@ -195,6 +174,31 @@ fun NoteDetailScreen(
         }
     }
 
+    if (showColorPicker) {
+        ModalBottomSheet(onDismissRequest = { showColorPicker = false }) {
+            Column(modifier = Modifier.padding(16.dp).padding(bottom = 32.dp)) {
+                Text("Select color", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
+                val colors = if (isSystemInDarkTheme()) DarkNoteColors else NoteColors
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(colors.size) { index ->
+                        val itemColor = colors[index]
+                        Surface(
+                            onClick = { color = itemColor.toArgb(); showColorPicker = false },
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = itemColor,
+                            modifier = Modifier.size(48.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        ) {
+                            if (color == itemColor.toArgb()) {
+                                Icon(Icons.Default.Check, null, modifier = Modifier.padding(12.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if (showDiscardDialog) {
         AlertDialog(
             onDismissRequest = { showDiscardDialog = false },
@@ -215,6 +219,74 @@ fun NoteDetailScreen(
                     Text("Keep Editing")
                 }
             }
+        )
+    }
+}
+
+enum class ToolbarAction {
+    H1, H2, BOLD, ITALIC, UNDERLINE, LIST, CHECKLIST, IMAGE
+}
+
+@Composable
+fun FloatingToolbar(
+    modifier: Modifier = Modifier,
+    onAction: (ToolbarAction) -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .wrapContentWidth()
+            .height(56.dp)
+            .clip(CircleShape),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+        tonalElevation = 8.dp,
+        shadowElevation = 6.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .fillMaxHeight(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            ToolbarButton(Icons.Default.Title, "H1") { onAction(ToolbarAction.H1) }
+            ToolbarButton(Icons.Outlined.Title, "H2") { onAction(ToolbarAction.H2) }
+            VerticalDivider(
+                modifier = Modifier
+                    .height(24.dp)
+                    .padding(horizontal = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            ToolbarButton(Icons.Default.FormatBold, "Bold") { onAction(ToolbarAction.BOLD) }
+            ToolbarButton(Icons.Default.FormatItalic, "Italic") { onAction(ToolbarAction.ITALIC) }
+            ToolbarButton(Icons.Default.FormatUnderlined, "Underline") { onAction(ToolbarAction.UNDERLINE) }
+            VerticalDivider(
+                modifier = Modifier
+                    .height(24.dp)
+                    .padding(horizontal = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            ToolbarButton(Icons.Default.FormatListBulleted, "List") { onAction(ToolbarAction.LIST) }
+            ToolbarButton(Icons.Default.Checklist, "Checklist") { onAction(ToolbarAction.CHECKLIST) }
+            ToolbarButton(Icons.Default.AddPhotoAlternate, "Image") { onAction(ToolbarAction.IMAGE) }
+        }
+    }
+}
+
+@Composable
+fun ToolbarButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(40.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
         )
     }
 }

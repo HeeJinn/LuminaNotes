@@ -11,21 +11,27 @@ object NoteMetadataUtils {
         return (words / 200).coerceAtLeast(1)
     }
 
-    fun getMoodEmoji(text: String): String {
-        val content = text.lowercase()
-        val positiveWords = listOf("happy", "good", "great", "awesome", "love", "smile", "fun", "excited", "best")
-        val negativeWords = listOf("sad", "bad", "angry", "hate", "terrible", "worst", "cry", "upset", "sorry")
-        val taskWords = listOf("todo", "task", "buy", "remember", "clean", "fix", "work", "project", "deadline")
+    enum class GrowthStage {
+        SEED, SPROUT, BLOSSOM
+    }
 
-        val positiveCount = positiveWords.count { content.contains(it) }
-        val negativeCount = negativeWords.count { content.contains(it) }
-        val taskCount = taskWords.count { content.contains(it) }
-
+    fun getGrowthStage(text: String): GrowthStage {
+        val length = text.length
         return when {
-            taskCount > positiveCount && taskCount > negativeCount -> "📝"
-            positiveCount > negativeCount -> "✨"
-            negativeCount > positiveCount -> "☁️"
-            else -> "📄"
+            length < 50 -> GrowthStage.SEED
+            length < 200 -> GrowthStage.SPROUT
+            else -> GrowthStage.BLOSSOM
+        }
+    }
+
+    fun suggestColor(title: String, content: String): Int? {
+        val combined = (title + " " + content).lowercase()
+        return when {
+            combined.contains("urgent") || combined.contains("deadline") || combined.contains("important") -> 0xFFF28B82.toInt() // Red
+            combined.contains("buy") || combined.contains("shop") || combined.contains("money") -> 0xFFCCFF90.toInt() // Green
+            combined.contains("idea") || combined.contains("think") || combined.contains("creative") -> 0xFFFFF475.toInt() // Yellow
+            combined.contains("work") || combined.contains("meeting") || combined.contains("project") -> 0xFFAECBFA.toInt() // Blue
+            else -> null
         }
     }
 }

@@ -12,5 +12,6 @@ data class NoteEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val isPinned: Boolean = false,
     val isArchived: Boolean = false,
-    val color: Int = 0xFFFFFFFF.toInt() // Default white
+    val color: Int = 0xFFFFFFFF.toInt(), // Default white
+    val label: String? = null
 )
