@@ -1,6 +1,5 @@
 package com.example.agenttest.ui.detail
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -112,11 +111,17 @@ fun NoteDetailScreen(
         }
     }
 
-    var color by remember { mutableStateOf(note?.color ?: 0xFFFFFFFF.toInt()) }
+    var color by remember { mutableIntStateOf(note?.color ?: 0xFFFFFFFF.toInt()) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
 
-    val hasChanges = title != (note?.title ?: "") || richTextState.toHtml() != (note?.content ?: "") || color != (note?.color ?: 0xFFFFFFFF.toInt())
+    val hasChanges by remember {
+        derivedStateOf {
+            title != (note?.title ?: "") || 
+            richTextState.toHtml() != (note?.content ?: "") || 
+            color != (note?.color ?: 0xFFFFFFFF.toInt())
+        }
+    }
 
     // Auto-suggest color based on content
     LaunchedEffect(title, richTextState.annotatedString.text) {
@@ -244,7 +249,7 @@ fun NoteDetailScreen(
                         val itemColor = colors[index]
                         Surface(
                             onClick = { color = itemColor.toArgb(); showColorPicker = false },
-                            shape = androidx.compose.foundation.shape.CircleShape,
+                            shape = CircleShape,
                             color = itemColor,
                             modifier = Modifier.size(48.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -281,10 +286,6 @@ fun NoteDetailScreen(
             }
         )
     }
-}
-
-enum class ToolbarAction {
-    H1, H2, BOLD, ITALIC, UNDERLINE, LIST, CHECKLIST, IMAGE
 }
 
 @Composable
