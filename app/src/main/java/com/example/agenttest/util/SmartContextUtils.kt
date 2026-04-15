@@ -18,9 +18,9 @@ object SmartContextUtils {
         URL, EMAIL, PHONE
     }
 
-    private val urlRegex = "(https?://[\\w\\d.-]+(:\\d+)?(/[\\w\\d._/!~*()@%&=+$-]*)?)".toRegex()
-    private val emailRegex = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}".toRegex()
-    private val phoneRegex = "(\\+?\\d{1,3}[- ]?)?\\d{10}".toRegex()
+    private val urlRegex = "\\b(https?://[\\w\\d.-]+(:\\d+)?(/[\\w\\d._/!~*()@%&=+$-]*)?)\\b".toRegex()
+    private val emailRegex = "\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b".toRegex()
+    private val phoneRegex = "\\b(\\+?\\d{1,3}[- ]?)?\\d{10}\\b".toRegex()
 
     fun extractActions(text: String): List<ContextAction> {
         val actions = mutableListOf<ContextAction>()

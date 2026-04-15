@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Notes
@@ -33,6 +34,8 @@ import com.example.agenttest.data.local.entity.NoteEntity
 import com.example.agenttest.ui.theme.NoteShapes
 import com.example.agenttest.ui.viewmodel.NoteFilter
 import com.example.agenttest.ui.viewmodel.NoteViewModel
+import com.example.agenttest.data.local.entity.NoteType
+import com.example.agenttest.ui.components.ChecklistViewer
 import com.example.agenttest.util.ColorUtils
 import com.example.agenttest.util.DateUtils
 import com.example.agenttest.util.NoteMetadataUtils
@@ -77,6 +80,7 @@ fun HomeScreen(
     viewModel: NoteViewModel
 ) {
     val notes by viewModel.notes.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentFilter by viewModel.currentFilter.collectAsState()
     var active by remember { mutableStateOf(false) }
@@ -99,10 +103,10 @@ fun HomeScreen(
                             NoteFilter.PINNED -> "Pinned"
                             NoteFilter.ARCHIVED -> "Archived"
                         },
-                        style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier
-                            .padding(horizontal = 24.dp, vertical = 16.dp)
-                            .padding(top = 8.dp)
+                            .padding(horizontal = 24.dp, vertical = 12.dp)
+                            .padding(top = 4.dp)
                     )
                     
                     SearchBar(
@@ -132,20 +136,28 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = if (active) 0.dp else 16.dp)
-                            .padding(bottom = if (active) 0.dp else 16.dp)
-                    ) {
-                        LazyVerticalStaggeredGrid(
-                            columns = StaggeredGridCells.Fixed(1),
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
-                            verticalItemSpacing = 8.dp,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(notes, key = { it.id }) { note ->
-                                NoteSearchResultItem(note, onNoteClick)
+                            .padding(bottom = if (active) 0.dp else 16.dp),
+                        content = {
+                            val searchResults by remember(notes, searchQuery) {
+                                derivedStateOf {
+                                    if (searchQuery.isEmpty()) emptyList<NoteEntity>()
+                                    else notes.filter { it.title.contains(searchQuery, ignoreCase = true) || it.content.contains(searchQuery, ignoreCase = true) }
+                                }
+                            }
+                            
+                            LazyVerticalStaggeredGrid(
+                                columns = StaggeredGridCells.Fixed(1),
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(16.dp),
+                                verticalItemSpacing = 8.dp,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(searchResults, key = { it.id }) { note ->
+                                    NoteSearchResultItem(note, onNoteClick)
+                                }
                             }
                         }
-                    }
+                    )
 
                     if (!active) {
                         FilterChips(currentFilter, onFilterSelected = { viewModel.setFilter(it) })
@@ -164,9 +176,24 @@ fun HomeScreen(
             }
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
-                if (notes.isEmpty()) {
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 4.dp
+                        )
+                    }
+                } else if (notes.isEmpty()) {
                     EmptyState(searchQuery, currentFilter)
                 } else {
+                    val pinnedNotes = remember(notes) { notes.filter { it.isPinned } }
+                    val unpinnedNotes = remember(notes) { notes.filter { !it.isPinned } }
+                    val showSections = currentFilter == NoteFilter.ALL && pinnedNotes.isNotEmpty() && unpinnedNotes.isNotEmpty()
+
                     LazyVerticalStaggeredGrid(
                         columns = StaggeredGridCells.Fixed(2),
                         modifier = Modifier.fillMaxSize(),
@@ -174,13 +201,41 @@ fun HomeScreen(
                         verticalItemSpacing = 12.dp,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(notes, key = { it.id }) { note ->
-                            NoteCard(
-                                note = note,
-                                onClick = { onNoteClick(note.id) },
-                                onLongClick = { showOptionsForNote = note },
-                                onPinClick = { viewModel.togglePin(note) }
-                            )
+                        if (showSections) {
+                            item(span = StaggeredGridItemSpan.FullLine) {
+                                SectionHeader("Pinned")
+                            }
+                            items(pinnedNotes, key = { it.id }) { note ->
+                                NoteCard(
+                                    modifier = Modifier.animateItem(),
+                                    note = note,
+                                    onClick = { onNoteClick(note.id) },
+                                    onLongClick = { showOptionsForNote = note },
+                                    onPinClick = { viewModel.togglePin(note) }
+                                )
+                            }
+                            item(span = StaggeredGridItemSpan.FullLine) {
+                                SectionHeader("Others")
+                            }
+                            items(unpinnedNotes, key = { it.id }) { note ->
+                                NoteCard(
+                                    modifier = Modifier.animateItem(),
+                                    note = note,
+                                    onClick = { onNoteClick(note.id) },
+                                    onLongClick = { showOptionsForNote = note },
+                                    onPinClick = { viewModel.togglePin(note) }
+                                )
+                            }
+                        } else {
+                            items(notes, key = { it.id }) { note ->
+                                NoteCard(
+                                    modifier = Modifier.animateItem(),
+                                    note = note,
+                                    onClick = { onNoteClick(note.id) },
+                                    onLongClick = { showOptionsForNote = note },
+                                    onPinClick = { viewModel.togglePin(note) }
+                                )
+                            }
                         }
                     }
                 }
@@ -291,7 +346,11 @@ fun NoteOptionsSheet(
     onDelete: (NoteEntity) -> Unit,
     onColorPicker: (NoteEntity) -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
+    ) {
         Column(modifier = Modifier.padding(bottom = 32.dp)) {
             ListItem(
                 headlineContent = { Text(if (note.isPinned) "Unpin" else "Pin") },
@@ -350,11 +409,48 @@ fun ColorPickerSheet(
     onDismiss: () -> Unit,
     onColorSelected: (NoteEntity, Color) -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val isDark = isSystemInDarkTheme()
+    // Treat 0, White (light), or Dark Grey (dark) as the default state
+    val isDefault = note.color == 0 || 
+                    note.color == 0xFFFFFFFF.toInt() || 
+                    note.color == 0xFF1F1F1F.toInt()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
+    ) {
         Column(modifier = Modifier.padding(16.dp).padding(bottom = 32.dp)) {
             Text("Select color", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 16.dp))
-            val colors = if (isSystemInDarkTheme()) DarkNoteColors else NoteColors
+            val colors = (if (isDark) DarkNoteColors else NoteColors).drop(1)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                item {
+                    Surface(
+                        onClick = { 
+                            onColorSelected(note, Color.Transparent) // Use Transparent (0) for default
+                        },
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.size(48.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.FormatColorReset, 
+                                contentDescription = "Default",
+                                modifier = Modifier.size(24.dp)
+                            )
+                            if (isDefault) {
+                                Icon(
+                                    Icons.Default.Check, 
+                                    null, 
+                                    modifier = Modifier.size(32.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                }
                 items(colors) { color ->
                     Surface(
                         onClick = { onColorSelected(note, color) },
@@ -368,7 +464,7 @@ fun ColorPickerSheet(
                                 Icons.Default.Check, 
                                 null, 
                                 modifier = Modifier.padding(12.dp), 
-                                tint = if (color == Color.White || (isSystemInDarkTheme() && color == Color(0xFFE8EAED))) Color.Black else Color.White
+                                tint = if (color == Color.White || (isDark && color == Color(0xFFE8EAED))) Color.Black else Color.White
                             )
                         }
                     }
@@ -388,16 +484,34 @@ fun NoteSearchResultItem(note: NoteEntity, onNoteClick: (String) -> Unit) {
     )
 }
 
+@Composable
+fun SectionHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .padding(horizontal = 8.dp)
+            .padding(top = 16.dp, bottom = 8.dp)
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NoteCard(
     note: NoteEntity,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onPinClick: () -> Unit
+    onPinClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val isCustomColor = note.color != 0xFFFFFFFF.toInt()
     val isDark = isSystemInDarkTheme()
+    // 0 or the default theme colors are treated as "Default"
+    val isCustomColor = note.color != 0 && 
+                        note.color != 0xFFFFFFFF.toInt() && 
+                        note.color != 0xFF1F1F1F.toInt()
+
     val cardColor = if (isCustomColor) Color(note.color) else MaterialTheme.colorScheme.surface
     val contentColor = if (isCustomColor) ColorUtils.getContrastingColor(cardColor) else MaterialTheme.colorScheme.onSurface
     val secondaryContentColor = if (isCustomColor) ColorUtils.getSecondaryContrastingColor(cardColor) else MaterialTheme.colorScheme.onSurfaceVariant
@@ -419,7 +533,7 @@ fun NoteCard(
     } else null
 
     OutlinedCard(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .combinedClickable(
                 onClick = onClick,
@@ -467,14 +581,50 @@ fun NoteCard(
                     }
                 }
                 
-                if (note.content.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = NoteMetadataUtils.stripHtml(note.content),
-                        style = bodyStyle,
-                        maxLines = 6,
-                        color = secondaryContentColor
-                    )
+                if (note.type == NoteType.TEXT) {
+                    if (note.content.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = NoteMetadataUtils.stripHtml(note.content),
+                            style = bodyStyle,
+                            maxLines = 6,
+                            color = secondaryContentColor
+                        )
+                    }
+                } else {
+                    if (note.checklistItems.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            note.checklistItems.take(5).forEach { item ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (item.isChecked) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = secondaryContentColor
+                                    )
+                                    Text(
+                                        text = item.text,
+                                        style = bodyStyle,
+                                        maxLines = 1,
+                                        color = if (item.isChecked) secondaryContentColor.copy(alpha = 0.6f) else secondaryContentColor,
+                                        textDecoration = if (item.isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
+                                    )
+                                }
+                            }
+                            if (note.checklistItems.size > 5) {
+                                Text(
+                                    text = "+ ${note.checklistItems.size - 5} more",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = tertiaryContentColor,
+                                    modifier = Modifier.padding(start = 24.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 if (smartActions.isNotEmpty()) {

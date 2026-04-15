@@ -65,8 +65,16 @@ fun LuminaAppNavGraph() {
     ) {
         composable<LuminaHomeRoute> {
             HomeScreen(
-                onNoteClick = { id -> navController.navigate(LuminaNoteViewRoute(id)) },
-                onAddNoteClick = { navController.navigate(LuminaNoteDetailRoute()) },
+                onNoteClick = { id -> 
+                    if (navController.currentDestination?.route?.contains("LuminaHomeRoute") == true) {
+                        navController.navigate(LuminaNoteViewRoute(id)) 
+                    }
+                },
+                onAddNoteClick = { 
+                    if (navController.currentDestination?.route?.contains("LuminaHomeRoute") == true) {
+                        navController.navigate(LuminaNoteDetailRoute()) 
+                    }
+                },
                 viewModel = viewModel
             )
         }
@@ -75,7 +83,11 @@ fun LuminaAppNavGraph() {
             NoteViewScreen(
                 noteId = route.id,
                 onBackClick = { navController.popBackStack() },
-                onEditClick = { id -> navController.navigate(LuminaNoteDetailRoute(id)) },
+                onEditClick = { id -> 
+                    if (navController.currentDestination?.route?.contains("LuminaNoteViewRoute") == true) {
+                        navController.navigate(LuminaNoteDetailRoute(id)) 
+                    }
+                },
                 viewModel = viewModel
             )
         }
@@ -83,7 +95,12 @@ fun LuminaAppNavGraph() {
             val route: LuminaNoteDetailRoute = backStackEntry.toRoute()
             NoteDetailScreen(
                 noteId = route.id,
-                onBackClick = { navController.popBackStack() },
+                onBackClick = { 
+                    navController.popBackStack()
+                },
+                onDeleteFinished = {
+                    navController.popBackStack(LuminaHomeRoute, inclusive = false)
+                },
                 viewModel = viewModel
             )
         }

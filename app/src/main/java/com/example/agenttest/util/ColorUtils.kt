@@ -5,16 +5,16 @@ import androidx.compose.ui.graphics.luminance
 
 object ColorUtils {
     fun getContrastingColor(backgroundColor: Color): Color {
-        return if (backgroundColor.luminance() > 0.5f) {
-            Color(0xFF1C1B1F) // Dark grey/black for light backgrounds
+        return if (backgroundColor.luminance() > 0.4f) {
+            Color.Black
         } else {
-            Color.White // White for dark backgrounds
+            Color.White
         }
     }
     
     fun getSecondaryContrastingColor(backgroundColor: Color): Color {
-        return if (backgroundColor.luminance() > 0.5f) {
-            Color(0xFF1C1B1F).copy(alpha = 0.7f)
+        return if (backgroundColor.luminance() > 0.4f) {
+            Color.Black.copy(alpha = 0.6f)
         } else {
             Color.White.copy(alpha = 0.7f)
         }

@@ -26,14 +26,26 @@ class NoteViewModel @Inject constructor(
     private val _currentFilter = MutableStateFlow(NoteFilter.ALL)
     val currentFilter: StateFlow<NoteFilter> = _currentFilter
 
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
     val notes: StateFlow<List<NoteEntity>> = combine(
         noteDao.getAllNotes(),
         _searchQuery,
         _currentFilter
     ) { notes, query, filter ->
+        _isLoading.value = false 
+        // ... rest of logic
+        if (query.isEmpty() && filter == NoteFilter.ALL) {
+            return@combine notes.filter { !it.isArchived }
+                .sortedWith(compareByDescending<NoteEntity> { it.isPinned }.thenByDescending { it.createdAt })
+        }
+        
         val filtered = notes.filter { note ->
-            val matchesQuery = note.title.contains(query, ignoreCase = true) ||
-                    note.content.contains(query, ignoreCase = true)
+            val matchesQuery = if (query.isEmpty()) true else {
+                note.title.contains(query, ignoreCase = true) ||
+                        note.content.contains(query, ignoreCase = true)
+            }
             val matchesFilter = when (filter) {
                 NoteFilter.ALL -> !note.isArchived
                 NoteFilter.PINNED -> note.isPinned && !note.isArchived
@@ -84,13 +96,23 @@ class NoteViewModel @Inject constructor(
         }
     }
 
-    fun saveNote(id: String?, title: String, content: String, color: Int? = null, label: String? = null) {
+    fun saveNote(
+        id: String?,
+        title: String,
+        content: String,
+        type: com.example.agenttest.data.local.entity.NoteType = com.example.agenttest.data.local.entity.NoteType.TEXT,
+        checklistItems: List<com.example.agenttest.data.local.entity.ChecklistItem> = emptyList(),
+        color: Int? = null,
+        label: String? = null
+    ) {
         viewModelScope.launch {
             val existingNote = id?.let { noteDao.getNoteById(it) }
             val note = if (existingNote != null) {
                 existingNote.copy(
                     title = title,
                     content = content,
+                    type = type,
+                    checklistItems = checklistItems,
                     color = color ?: existingNote.color,
                     label = label ?: existingNote.label,
                     createdAt = System.currentTimeMillis() // Update last modified time
@@ -99,6 +121,8 @@ class NoteViewModel @Inject constructor(
                 NoteEntity(
                     title = title,
                     content = content,
+                    type = type,
+                    checklistItems = checklistItems,
                     color = color ?: 0xFFFFFFFF.toInt(),
                     label = label
                 )
