@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.example.agenttest.data.local.NoteDatabase
 import com.example.agenttest.data.local.dao.NoteDao
+import com.example.agenttest.util.ReminderManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -30,5 +31,11 @@ object DatabaseModule {
     @Provides
     fun provideNoteDao(database: NoteDatabase): NoteDao {
         return database.noteDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideReminderManager(@ApplicationContext context: Context): ReminderManager {
+        return ReminderManager(context)
     }
 }

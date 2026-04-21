@@ -12,13 +12,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import com.example.agenttest.data.local.entity.NoteType
 import com.example.agenttest.ui.components.ChecklistViewer
+import com.example.agenttest.util.SmartContextUtils
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import com.mohamedrejeb.richeditor.ui.material3.RichText
 import com.example.agenttest.data.local.entity.NoteEntity
@@ -67,10 +73,51 @@ fun NoteViewScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val backgroundColor = if (note?.color != null && note.color != 0) Color(note.color) else MaterialTheme.colorScheme.surface
     val contentColor = if (note?.color != null && note.color != 0) ColorUtils.getContrastingColor(backgroundColor) else MaterialTheme.colorScheme.onSurface
+    
+    // Add this to handle the UI while note is missing (during deletion/restore transition)
+    // We remove the early return that causes the blank surface
+    /*
+    if (noteInList == null && lastKnownNote != null && !isNavigatingBack) {
+        Surface(modifier = Modifier.fillMaxSize(), color = backgroundColor) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (isLoading) CircularProgressIndicator(color = contentColor)
+            }
+        }
+        return
+    }
+    */
     val secondaryContentColor = if (note?.color != null && note.color != 0) ColorUtils.getSecondaryContrastingColor(backgroundColor) else MaterialTheme.colorScheme.outline
     
     val titleStyle = NoteShapes.getTextStyleForColor(backgroundColor, MaterialTheme.typography.headlineLarge)
     val bodyStyle = NoteShapes.getTextStyleForColor(backgroundColor, MaterialTheme.typography.bodyLarge)
+
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearchActive by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isSearchActive) {
+        if (isSearchActive) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    val highlightedContent = remember(note?.content, searchQuery) {
+        if (note == null || searchQuery.isEmpty()) null
+        else NoteMetadataUtils.getHighlightedText(
+            NoteMetadataUtils.stripHtml(note.content),
+            searchQuery,
+            Color.Yellow.copy(alpha = 0.5f)
+        )
+    }
+
+    val highlightedTitle = remember(note?.title, searchQuery) {
+        if (note == null || searchQuery.isEmpty()) null
+        else NoteMetadataUtils.getHighlightedText(
+            note.title,
+            searchQuery,
+            Color.Yellow.copy(alpha = 0.5f)
+        )
+    }
     
                 val wordCount = note?.let { NoteMetadataUtils.getWordCount(it.content) } ?: 0
                 val readingTime = note?.let { NoteMetadataUtils.getReadingTimeMinutes(it.content) } ?: 0
@@ -100,10 +147,41 @@ fun NoteViewScreen(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                     TopAppBar(
-                        title = { },
+                        title = {
+                            if (isSearchActive) {
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    placeholder = { Text("Search in note...", color = contentColor.copy(alpha = 0.6f)) },
+                                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        disabledContainerColor = Color.Transparent,
+                                        cursorColor = contentColor,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        focusedTextColor = contentColor,
+                                        unfocusedTextColor = contentColor
+                                    ),
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodyLarge,
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { searchQuery = "" }) {
+                                                Icon(Icons.Default.Clear, contentDescription = "Clear search", tint = contentColor)
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        },
                         navigationIcon = {
                             IconButton(onClick = { 
-                                if (!isNavigatingBack) {
+                                if (isSearchActive) {
+                                    isSearchActive = false
+                                    searchQuery = ""
+                                } else if (!isNavigatingBack) {
                                     isNavigatingBack = true
                                     onBackClick()
                                 }
@@ -116,7 +194,14 @@ fun NoteViewScreen(
                             }
                         },
                         actions = {
-                            if (note != null) {
+                            if (note != null && !isSearchActive) {
+                                IconButton(onClick = { isSearchActive = true }) {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = "Search",
+                                        tint = contentColor
+                                    )
+                                }
                                 IconButton(onClick = { viewModel.togglePin(note) }) {
                                     Icon(
                                         imageVector = if (note.isPinned) Icons.Default.PushPin else Icons.Outlined.PushPin,
@@ -131,12 +216,36 @@ fun NoteViewScreen(
                                         tint = contentColor
                                     )
                                 }
-                                IconButton(onClick = { showDeleteConfirm = true }) {
+                                IconButton(onClick = { 
+                                    if (note.isDeleted) {
+                                        showDeleteConfirm = true
+                                    } else if (!isNavigatingBack) {
+                                        isNavigatingBack = true
+                                        viewModel.softDeleteNote(note.id)
+                                        onBackClick()
+                                    }
+                                }) {
                                     Icon(
-                                        Icons.Default.Delete, 
-                                        contentDescription = "Delete",
+                                        if (note.isDeleted) Icons.Default.DeleteForever else Icons.Default.Delete,
+                                        contentDescription = if (note.isDeleted) "Delete Permanently" else "Delete",
                                         tint = contentColor
                                     )
+                                }
+                                
+                                if (note.isDeleted) {
+                                    IconButton(onClick = {
+                                        if (!isNavigatingBack) {
+                                            isNavigatingBack = true
+                                            viewModel.restoreNote(note.id)
+                                            onBackClick()
+                                        }
+                                    }) {
+                                        Icon(
+                                            Icons.Default.Restore,
+                                            contentDescription = "Restore",
+                                            tint = contentColor
+                                        )
+                                    }
                                 }
                             }
                         },
@@ -157,12 +266,21 @@ fun NoteViewScreen(
                             .verticalScroll(rememberScrollState())
                             .fillMaxSize()
                     ) {
-                        Text(
-                            text = note.title,
-                            style = titleStyle.copy(fontWeight = FontWeight.Black),
-                            color = contentColor,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        if (highlightedTitle != null) {
+                            Text(
+                                text = highlightedTitle,
+                                style = titleStyle.copy(fontWeight = FontWeight.Black),
+                                color = contentColor,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            Text(
+                                text = note.title,
+                                style = titleStyle.copy(fontWeight = FontWeight.Black),
+                                color = contentColor,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                         
                         Spacer(modifier = Modifier.height(12.dp))
                         
@@ -177,6 +295,11 @@ fun NoteViewScreen(
                             ) {
                                 MetadataItem(Icons.Default.Timer, "$readingTime min read", secondaryContentColor)
                                 MetadataItem(Icons.Default.Abc, "$wordCount words", secondaryContentColor)
+                                
+                                if (note.reminderTime != null && note.reminderTime > System.currentTimeMillis()) {
+                                    val date = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(note.reminderTime))
+                                    MetadataItem(Icons.Default.NotificationsActive, date, secondaryContentColor)
+                                }
                             }
                         }
 
@@ -187,6 +310,26 @@ fun NoteViewScreen(
                             style = MaterialTheme.typography.labelMedium,
                             color = secondaryContentColor
                         )
+
+                        if (note.labels.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                note.labels.forEach { label ->
+                                    SuggestionChip(
+                                        onClick = { },
+                                        label = { Text(label) },
+                                        colors = SuggestionChipDefaults.suggestionChipColors(
+                                            labelColor = contentColor,
+                                            containerColor = contentColor.copy(alpha = 0.1f)
+                                        ),
+                                        border = null
+                                    )
+                                }
+                            }
+                        }
                         
                         Spacer(modifier = Modifier.height(24.dp))
                         
@@ -273,15 +416,24 @@ fun NoteViewScreen(
                                 )
                             }
 
-                            RichText(
-                                state = richTextState,
-                                style = bodyStyle.copy(lineHeight = bodyStyle.lineHeight * 1.2),
-                                color = contentColor
-                            )
+                            if (isSearchActive && searchQuery.isNotEmpty() && highlightedContent != null) {
+                                Text(
+                                    text = highlightedContent,
+                                    style = bodyStyle.copy(lineHeight = bodyStyle.lineHeight * 1.2),
+                                    color = contentColor
+                                )
+                            } else {
+                                RichText(
+                                    state = richTextState,
+                                    style = bodyStyle.copy(lineHeight = bodyStyle.lineHeight * 1.2),
+                                    color = contentColor
+                                )
+                            }
                         } else {
                             ChecklistViewer(
                                 items = note.checklistItems,
                                 contentColor = contentColor,
+                                searchQuery = searchQuery,
                                 onToggleItem = { toggledItem ->
                                     val oldItems = note.checklistItems.toList()
                                     val updatedItems = oldItems.map { 
@@ -338,21 +490,38 @@ fun NoteViewScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         attachments.forEach { (path, type) ->
-                            AssistChip(
-                                onClick = {
-                                    if (type == "audio") {
-                                        try {
-                                            audioPlayer.playAudio(path)
-                                            android.widget.Toast.makeText(context, "Playing recording...", android.widget.Toast.LENGTH_SHORT).show()
-                                        } catch (e: Exception) {
-                                            android.widget.Toast.makeText(context, "Playback error", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    } else {
-                                        selectedImagePath = path
-                                        showImageViewer = true
+                        val isHighlighted = searchQuery.isNotEmpty() && (
+                            (type == "audio" && "Voice Memo".contains(searchQuery, ignoreCase = true)) ||
+                            (type == "image" && "Sketch".contains(searchQuery, ignoreCase = true))
+                        )
+                        AssistChip(
+                            onClick = {
+                                if (type == "audio") {
+                                    try {
+                                        audioPlayer.playAudio(path)
+                                        android.widget.Toast.makeText(context, "Playing recording...", android.widget.Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        android.widget.Toast.makeText(context, "Playback error", android.widget.Toast.LENGTH_SHORT).show()
                                     }
-                                },
-                                label = { Text(if (type == "audio") "Voice Memo" else "Sketch") },
+                                } else {
+                                    selectedImagePath = path
+                                    showImageViewer = true
+                                }
+                            },
+                            label = { 
+                                val labelText = if (type == "audio") "Voice Memo" else "Sketch"
+                                if (isHighlighted) {
+                                    Text(
+                                        text = NoteMetadataUtils.getHighlightedText(
+                                            labelText,
+                                            searchQuery,
+                                            Color.Yellow.copy(alpha = 0.5f)
+                                        )
+                                    )
+                                } else {
+                                    Text(labelText)
+                                }
+                            },
                                 leadingIcon = {
                                     Icon(
                                         if (type == "audio") Icons.Outlined.Mic else Icons.Outlined.Image,
@@ -388,9 +557,33 @@ fun NoteViewScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 contextActions.forEach { action ->
+                                    val isHighlighted = searchQuery.isNotEmpty() && action.label.contains(searchQuery, ignoreCase = true)
                                     AssistChip(
-                                        onClick = { /* Handle action - e.g., open URL/Email/Phone */ },
-                                        label = { Text(action.label) },
+                                        onClick = {
+                                            try {
+                                                val intent = when (action.type) {
+                                                    SmartContextUtils.ActionType.URL -> Intent(Intent.ACTION_VIEW, Uri.parse(action.data))
+                                                    SmartContextUtils.ActionType.EMAIL -> Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${action.data}"))
+                                                    SmartContextUtils.ActionType.PHONE -> Intent(Intent.ACTION_DIAL, Uri.parse("tel:${action.data}"))
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Could not open: ${e.message}", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        label = { 
+                                            if (isHighlighted) {
+                                                Text(
+                                                    text = NoteMetadataUtils.getHighlightedText(
+                                                        action.label,
+                                                        searchQuery,
+                                                        Color.Yellow.copy(alpha = 0.5f)
+                                                    )
+                                                )
+                                            } else {
+                                                Text(action.label)
+                                            }
+                                        },
                                         leadingIcon = { Icon(action.icon, null, modifier = Modifier.size(18.dp)) },
                                         colors = AssistChipDefaults.assistChipColors(
                                             labelColor = contentColor,
@@ -420,7 +613,11 @@ fun NoteViewScreen(
                         showDeleteConfirm = false
                         if (!isNavigatingBack) {
                             isNavigatingBack = true
-                            viewModel.deleteNote(note)
+                            if (note.isDeleted) {
+                                viewModel.deleteNotePermanently(note)
+                            } else {
+                                viewModel.softDeleteNote(note.id)
+                            }
                             onBackClick()
                         }
                     },

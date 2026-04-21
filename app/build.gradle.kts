@@ -70,10 +70,18 @@ dependencies {
     // Rich Editor
     implementation(libs.richeditor.compose)
 
+    // Biometric
+    implementation(libs.androidx.biometric)
+
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.hilt.compiler) // for hiltWorker
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

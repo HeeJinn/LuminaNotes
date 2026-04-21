@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -14,7 +15,9 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -83,11 +86,15 @@ fun HomeScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentFilter by viewModel.currentFilter.collectAsState()
+    val allLabels by viewModel.allLabels.collectAsState()
+    val selectedLabel by viewModel.selectedLabel.collectAsState()
     var active by remember { mutableStateOf(false) }
     
     var showOptionsForNote by remember { mutableStateOf<NoteEntity?>(null) }
     var showColorPickerForNote by remember { mutableStateOf<NoteEntity?>(null) }
     var noteToDelete by remember { mutableStateOf<NoteEntity?>(null) }
+    var noteToDeletePermanently by remember { mutableStateOf<NoteEntity?>(null) }
+    var showEmptyTrashDialog by remember { mutableStateOf(false) }
     
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -102,6 +109,7 @@ fun HomeScreen(
                             NoteFilter.ALL -> "My Notes"
                             NoteFilter.PINNED -> "Pinned"
                             NoteFilter.ARCHIVED -> "Archived"
+                            NoteFilter.DELETED -> "Trash"
                         },
                         style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier
@@ -138,10 +146,14 @@ fun HomeScreen(
                             .padding(horizontal = if (active) 0.dp else 16.dp)
                             .padding(bottom = if (active) 0.dp else 16.dp),
                         content = {
+                            // In Search Results, we should show highlighted text for attachments too
                             val searchResults by remember(notes, searchQuery) {
                                 derivedStateOf {
                                     if (searchQuery.isEmpty()) emptyList<NoteEntity>()
-                                    else notes.filter { it.title.contains(searchQuery, ignoreCase = true) || it.content.contains(searchQuery, ignoreCase = true) }
+                                    else notes.filter { note ->
+                                        note.title.contains(searchQuery, ignoreCase = true) || 
+                                        com.example.agenttest.util.NoteMetadataUtils.stripHtml(note.content).contains(searchQuery, ignoreCase = true)
+                                    }
                                 }
                             }
                             
@@ -160,7 +172,13 @@ fun HomeScreen(
                     )
 
                     if (!active) {
-                        FilterChips(currentFilter, onFilterSelected = { viewModel.setFilter(it) })
+                        FilterChips(
+                            currentFilter = currentFilter,
+                            allLabels = allLabels,
+                            selectedLabel = selectedLabel,
+                            onFilterSelected = { viewModel.setFilter(it) },
+                            onLabelSelected = { viewModel.setSelectedLabel(it) }
+                        )
                     }
                 }
             },
@@ -211,7 +229,8 @@ fun HomeScreen(
                                     note = note,
                                     onClick = { onNoteClick(note.id) },
                                     onLongClick = { showOptionsForNote = note },
-                                    onPinClick = { viewModel.togglePin(note) }
+                                    onPinClick = { viewModel.togglePin(note) },
+                                    searchQuery = searchQuery
                                 )
                             }
                             item(span = StaggeredGridItemSpan.FullLine) {
@@ -223,7 +242,8 @@ fun HomeScreen(
                                     note = note,
                                     onClick = { onNoteClick(note.id) },
                                     onLongClick = { showOptionsForNote = note },
-                                    onPinClick = { viewModel.togglePin(note) }
+                                    onPinClick = { viewModel.togglePin(note) },
+                                    searchQuery = searchQuery
                                 )
                             }
                         } else {
@@ -233,7 +253,8 @@ fun HomeScreen(
                                     note = note,
                                     onClick = { onNoteClick(note.id) },
                                     onLongClick = { showOptionsForNote = note },
-                                    onPinClick = { viewModel.togglePin(note) }
+                                    onPinClick = { viewModel.togglePin(note) },
+                                    searchQuery = searchQuery
                                 )
                             }
                         }
@@ -262,8 +283,68 @@ fun HomeScreen(
                         }
                     }
                 },
-                onDelete = { noteToDelete = it; showOptionsForNote = null },
-                onColorPicker = { showColorPickerForNote = it; showOptionsForNote = null }
+                onDelete = { 
+                    viewModel.softDeleteNote(it.id)
+                    showOptionsForNote = null 
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = "Note moved to Trash",
+                            actionLabel = "Undo",
+                            duration = SnackbarDuration.Short
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.restoreNote(it.id)
+                        }
+                    }
+                },
+                onColorPicker = { showColorPickerForNote = it; showOptionsForNote = null },
+                onRestore = { 
+                    viewModel.restoreNote(it.id)
+                    showOptionsForNote = null
+                },
+                onDeletePermanently = {
+                    noteToDeletePermanently = it
+                    showOptionsForNote = null
+                },
+                onEmptyTrash = {
+                    showEmptyTrashDialog = true
+                    showOptionsForNote = null
+                }
+            )
+        }
+
+        if (noteToDeletePermanently != null) {
+            DeleteConfirmationDialog(
+                onConfirm = {
+                    viewModel.deleteNotePermanently(noteToDeletePermanently!!)
+                    noteToDeletePermanently = null
+                },
+                onDismiss = { noteToDeletePermanently = null }
+            )
+        }
+
+        if (showEmptyTrashDialog) {
+            AlertDialog(
+                onDismissRequest = { showEmptyTrashDialog = false },
+                title = { Text("Empty Trash?") },
+                text = { Text("All notes in the trash will be permanently deleted. This action cannot be undone.") },
+                icon = { Icon(Icons.Default.DeleteSweep, null, tint = MaterialTheme.colorScheme.error) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.emptyTrash()
+                            showEmptyTrashDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Empty Trash")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEmptyTrashDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
             )
         }
 
@@ -282,16 +363,16 @@ fun HomeScreen(
             DeleteConfirmationDialog(
                 onConfirm = {
                     val note = noteToDelete!!
-                    viewModel.deleteNote(note)
+                    viewModel.softDeleteNote(note.id)
                     noteToDelete = null
                     scope.launch {
                         val result = snackbarHostState.showSnackbar(
-                            message = "Note deleted",
+                            message = "Note moved to Trash",
                             actionLabel = "Undo",
                             duration = SnackbarDuration.Short
                         )
                         if (result == SnackbarResult.ActionPerformed) {
-                            viewModel.insertNote(note)
+                            viewModel.restoreNote(note.id)
                         }
                     }
                 },
@@ -302,21 +383,41 @@ fun HomeScreen(
 }
 
 @Composable
-fun FilterChips(currentFilter: NoteFilter, onFilterSelected: (NoteFilter) -> Unit) {
+fun FilterChips(
+    currentFilter: NoteFilter,
+    allLabels: List<String>,
+    selectedLabel: String?,
+    onFilterSelected: (NoteFilter) -> Unit,
+    onLabelSelected: (String?) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         FilterChip(
-            selected = currentFilter == NoteFilter.ALL,
+            selected = currentFilter == NoteFilter.ALL && selectedLabel == null,
             onClick = { onFilterSelected(NoteFilter.ALL) },
             label = { Text("All") },
-            leadingIcon = if (currentFilter == NoteFilter.ALL) {
+            leadingIcon = if (currentFilter == NoteFilter.ALL && selectedLabel == null) {
                 { Icon(Icons.AutoMirrored.Filled.Notes, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
             } else null
         )
+        
+        allLabels.forEach { label ->
+            FilterChip(
+                selected = selectedLabel == label,
+                onClick = { 
+                    if (selectedLabel == label) onLabelSelected(null)
+                    else onLabelSelected(label)
+                },
+                label = { Text(label) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+            )
+        }
+
         FilterChip(
             selected = currentFilter == NoteFilter.PINNED,
             onClick = { onFilterSelected(NoteFilter.PINNED) },
@@ -333,6 +434,14 @@ fun FilterChips(currentFilter: NoteFilter, onFilterSelected: (NoteFilter) -> Uni
                 { Icon(Icons.Default.Archive, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
             } else null
         )
+        FilterChip(
+            selected = currentFilter == NoteFilter.DELETED,
+            onClick = { onFilterSelected(NoteFilter.DELETED) },
+            label = { Text("Trash") },
+            leadingIcon = if (currentFilter == NoteFilter.DELETED) {
+                { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+            } else null
+        )
     }
 }
 
@@ -344,7 +453,10 @@ fun NoteOptionsSheet(
     onPinToggle: (NoteEntity) -> Unit,
     onArchiveToggle: (NoteEntity) -> Unit,
     onDelete: (NoteEntity) -> Unit,
-    onColorPicker: (NoteEntity) -> Unit
+    onColorPicker: (NoteEntity) -> Unit,
+    onRestore: (NoteEntity) -> Unit,
+    onDeletePermanently: (NoteEntity) -> Unit,
+    onEmptyTrash: () -> Unit
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -352,26 +464,44 @@ fun NoteOptionsSheet(
         tonalElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(bottom = 32.dp)) {
-            ListItem(
-                headlineContent = { Text(if (note.isPinned) "Unpin" else "Pin") },
-                leadingContent = { Icon(if (note.isPinned) Icons.Default.PushPin else Icons.Outlined.PushPin, null) },
-                modifier = Modifier.clickable { onPinToggle(note) }
-            )
-            ListItem(
-                headlineContent = { Text(if (note.isArchived) "Unarchive" else "Archive") },
-                leadingContent = { Icon(if (note.isArchived) Icons.Outlined.Unarchive else Icons.Outlined.Archive, null) },
-                modifier = Modifier.clickable { onArchiveToggle(note) }
-            )
-            ListItem(
-                headlineContent = { Text("Change color") },
-                leadingContent = { Icon(Icons.Outlined.Palette, null) },
-                modifier = Modifier.clickable { onColorPicker(note) }
-            )
-            ListItem(
-                headlineContent = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                modifier = Modifier.clickable { onDelete(note) }
-            )
+            if (!note.isDeleted) {
+                ListItem(
+                    headlineContent = { Text(if (note.isPinned) "Unpin" else "Pin") },
+                    leadingContent = { Icon(if (note.isPinned) Icons.Default.PushPin else Icons.Outlined.PushPin, null) },
+                    modifier = Modifier.clickable { onPinToggle(note) }
+                )
+                ListItem(
+                    headlineContent = { Text(if (note.isArchived) "Unarchive" else "Archive") },
+                    leadingContent = { Icon(if (note.isArchived) Icons.Outlined.Unarchive else Icons.Outlined.Archive, null) },
+                    modifier = Modifier.clickable { onArchiveToggle(note) }
+                )
+                ListItem(
+                    headlineContent = { Text("Change color") },
+                    leadingContent = { Icon(Icons.Outlined.Palette, null) },
+                    modifier = Modifier.clickable { onColorPicker(note) }
+                )
+                ListItem(
+                    headlineContent = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                    leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                    modifier = Modifier.clickable { onDelete(note) }
+                )
+            } else {
+                ListItem(
+                    headlineContent = { Text("Empty Trash", color = MaterialTheme.colorScheme.error) },
+                    leadingContent = { Icon(Icons.Default.DeleteSweep, null, tint = MaterialTheme.colorScheme.error) },
+                    modifier = Modifier.clickable { onEmptyTrash() }
+                )
+                ListItem(
+                    headlineContent = { Text("Restore") },
+                    leadingContent = { Icon(Icons.Default.Restore, null) },
+                    modifier = Modifier.clickable { onRestore(note) }
+                )
+                ListItem(
+                    headlineContent = { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) },
+                    leadingContent = { Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
+                    modifier = Modifier.clickable { onDeletePermanently(note) }
+                )
+            }
         }
     }
 }
@@ -504,7 +634,8 @@ fun NoteCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onPinClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    searchQuery: String = ""
 ) {
     val isDark = isSystemInDarkTheme()
     // 0 or the default theme colors are treated as "Default"
@@ -554,13 +685,35 @@ fun NoteCard(
                     .padding(16.dp)
                     .fillMaxWidth()
             ) {
+                if (note.reminderTime != null && note.reminderTime > System.currentTimeMillis()) {
+                    val date = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(note.reminderTime))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.NotificationsActive,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = contentColor.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = date,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = contentColor.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
                 Row(
                     verticalAlignment = Alignment.Top,
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                     Text(
-                        text = note.title,
+                        text = NoteMetadataUtils.getHighlightedText(note.title, searchQuery, highlightColor),
                         style = NoteShapes.getTextStyleForColor(cardColor, MaterialTheme.typography.titleMedium),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
@@ -580,22 +733,68 @@ fun NoteCard(
                         )
                     }
                 }
+
+                if (note.isLocked) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = contentColor.copy(alpha = 0.5f)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "Locked Note",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = contentColor.copy(alpha = 0.5f)
+                        )
+                    }
+                }
                 
                 if (note.type == NoteType.TEXT) {
-                    if (note.content.isNotEmpty()) {
+                    if (note.isLocked) {
+                        // Don't show content for locked notes
+                    } else if (note.content.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
+                        val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                         Text(
-                            text = NoteMetadataUtils.stripHtml(note.content),
+                            text = NoteMetadataUtils.getHighlightedText(
+                                NoteMetadataUtils.stripHtml(note.content),
+                                searchQuery,
+                                highlightColor
+                            ),
                             style = bodyStyle,
                             maxLines = 6,
                             color = secondaryContentColor
                         )
                     }
                 } else {
-                    if (note.checklistItems.isNotEmpty()) {
+                    if (note.isLocked) {
+                        // Don't show content for locked notes
+                    } else if (note.checklistItems.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
+                        val checkedCount = note.checklistItems.count { it.isChecked }
+                        val totalCount = note.checklistItems.size
+                        
+                        Text(
+                            text = "$checkedCount/$totalCount items done",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = secondaryContentColor.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        
+                        LinearProgressIndicator(
+                            progress = { checkedCount.toFloat() / totalCount },
+                            modifier = Modifier.fillMaxWidth().height(2.dp).padding(bottom = 8.dp),
+                            color = contentColor.copy(alpha = 0.5f),
+                            trackColor = contentColor.copy(alpha = 0.1f)
+                        )
+
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            note.checklistItems.take(5).forEach { item ->
+                            note.checklistItems.take(4).forEach { item ->
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -656,6 +855,27 @@ fun NoteCard(
                     }
                 }
                 
+                if (note.labels.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        note.labels.forEach { label ->
+                            SuggestionChip(
+                                onClick = { /* Maybe filter by this label? */ },
+                                label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    labelColor = contentColor.copy(alpha = 0.7f),
+                                    containerColor = contentColor.copy(alpha = 0.05f)
+                                ),
+                                border = null,
+                                modifier = Modifier.height(24.dp)
+                            )
+                        }
+                    }
+                }
+                
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = DateUtils.formatTimestamp(note.createdAt),
@@ -679,7 +899,10 @@ fun EmptyState(searchQuery: String, filter: NoteFilter) {
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
             if (searchQuery.isEmpty() && filter == NoteFilter.ALL) {
                 LottieAnimation(
                     composition = composition,
@@ -691,28 +914,48 @@ fun EmptyState(searchQuery: String, filter: NoteFilter) {
                     searchQuery.isNotEmpty() -> Icons.Default.SearchOff
                     filter == NoteFilter.ARCHIVED -> Icons.Default.Archive
                     filter == NoteFilter.PINNED -> Icons.Default.PushPin
+                    filter == NoteFilter.DELETED -> Icons.Default.DeleteSweep
                     else -> Icons.Default.NoteAlt
                 }
+                
+                // For Trash/Deleted, we could use a custom colored icon or a different visual
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    modifier = Modifier.size(80.dp),
+                    tint = if (filter == NoteFilter.DELETED) MaterialTheme.colorScheme.error.copy(alpha = 0.4f) 
+                           else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                 )
             }
             
-            val text = when {
-                searchQuery.isNotEmpty() -> "No matching notes found"
-                filter == NoteFilter.ARCHIVED -> "No archived notes"
+            val titleText = when {
+                searchQuery.isNotEmpty() -> "No matches found"
+                filter == NoteFilter.ARCHIVED -> "Archive is empty"
                 filter == NoteFilter.PINNED -> "No pinned notes"
-                else -> "Start your first note"
+                filter == NoteFilter.DELETED -> "Trash is empty"
+                else -> "Your notes will appear here"
+            }
+            
+            val subtitleText = when {
+                searchQuery.isNotEmpty() -> "Try searching for something else"
+                filter == NoteFilter.ARCHIVED -> "Notes you archive will be stored here"
+                filter == NoteFilter.PINNED -> "Pin important notes to find them quickly"
+                filter == NoteFilter.DELETED -> "Items in trash are automatically deleted after 30 days"
+                else -> "Tap the + button to create your first note"
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = text,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = titleText,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = subtitleText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }

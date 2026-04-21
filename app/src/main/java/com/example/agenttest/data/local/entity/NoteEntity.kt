@@ -25,5 +25,10 @@ data class NoteEntity(
     val isPinned: Boolean = false,
     val isArchived: Boolean = false,
     val color: Int = 0xFFFFFFFF.toInt(), // Default white
-    val label: String? = null
+    val label: String? = null,
+    val reminderTime: Long? = null,
+    val isDeleted: Boolean = false,
+    val deletedAt: Long? = null,
+    val labels: List<String> = emptyList(),
+    val isLocked: Boolean = false
 )

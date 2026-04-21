@@ -294,14 +294,38 @@ fun ChecklistItemRow(
 fun ChecklistViewer(
     items: List<ChecklistItem>,
     contentColor: Color,
-    onToggleItem: ((ChecklistItem) -> Unit)? = null
+    onToggleItem: ((ChecklistItem) -> Unit)? = null,
+    showProgress: Boolean = false,
+    searchQuery: String = ""
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
+        if (showProgress && items.isNotEmpty()) {
+            val checkedCount = items.count { it.isChecked }
+            val progress = checkedCount.toFloat() / items.size
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.weight(1f).height(4.dp),
+                    color = contentColor,
+                    trackColor = contentColor.copy(alpha = 0.1f)
+                )
+                Text(
+                    text = "$checkedCount/${items.size}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = contentColor.copy(alpha = 0.6f)
+                )
+            }
+        }
         val uncheckedItems = items.filter { !it.isChecked }
         val checkedItems = items.filter { it.isChecked }
 
         uncheckedItems.forEach { item ->
-            ChecklistDisplayRow(item, contentColor, onToggleItem)
+            ChecklistDisplayRow(item, contentColor, onToggleItem, searchQuery)
         }
 
         if (checkedItems.isNotEmpty()) {
@@ -331,7 +355,7 @@ fun ChecklistViewer(
 
             if (expanded) {
                 checkedItems.forEach { item ->
-                    ChecklistDisplayRow(item, contentColor.copy(alpha = 0.6f), onToggleItem)
+                    ChecklistDisplayRow(item, contentColor.copy(alpha = 0.6f), onToggleItem, searchQuery)
                 }
             }
         }
@@ -342,8 +366,18 @@ fun ChecklistViewer(
 fun ChecklistDisplayRow(
     item: ChecklistItem,
     contentColor: Color,
-    onToggleItem: ((ChecklistItem) -> Unit)?
+    onToggleItem: ((ChecklistItem) -> Unit)?,
+    searchQuery: String = ""
 ) {
+    val highlightedText = remember(item.text, searchQuery) {
+        if (searchQuery.isEmpty()) null
+        else com.example.agenttest.util.NoteMetadataUtils.getHighlightedText(
+            item.text,
+            searchQuery,
+            Color.Yellow.copy(alpha = 0.5f)
+        )
+    }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -358,12 +392,22 @@ fun ChecklistDisplayRow(
             modifier = Modifier.size(24.dp)
         )
         Spacer(Modifier.width(12.dp))
-        Text(
-            text = item.text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = contentColor.copy(alpha = if (item.isChecked) 0.5f else 1.0f),
-            textDecoration = if (item.isChecked) TextDecoration.LineThrough else TextDecoration.None,
-            modifier = Modifier.weight(1f)
-        )
+        if (highlightedText != null) {
+            Text(
+                text = highlightedText,
+                style = MaterialTheme.typography.bodyLarge,
+                color = contentColor.copy(alpha = if (item.isChecked) 0.5f else 1.0f),
+                textDecoration = if (item.isChecked) TextDecoration.LineThrough else TextDecoration.None,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            Text(
+                text = item.text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = contentColor.copy(alpha = if (item.isChecked) 0.5f else 1.0f),
+                textDecoration = if (item.isChecked) TextDecoration.LineThrough else TextDecoration.None,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
