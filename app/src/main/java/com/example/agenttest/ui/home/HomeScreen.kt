@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.Notes
@@ -111,10 +112,10 @@ fun HomeScreen(
                             NoteFilter.ARCHIVED -> "Archived"
                             NoteFilter.DELETED -> "Trash"
                         },
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
                         modifier = Modifier
-                            .padding(horizontal = 24.dp, vertical = 12.dp)
-                            .padding(top = 4.dp)
+                            .padding(horizontal = 24.dp, vertical = 20.dp)
+                            .padding(top = 8.dp)
                     )
                     
                     SearchBar(
@@ -125,8 +126,8 @@ fun HomeScreen(
                                 onSearch = { active = false },
                                 expanded = active,
                                 onExpandedChange = { active = it },
-                                placeholder = { Text("Search your notes", style = MaterialTheme.typography.bodyLarge) },
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                placeholder = { Text("Search your notes", style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                                 trailingIcon = {
                                     if (active || searchQuery.isNotEmpty()) {
                                         IconButton(onClick = { 
@@ -401,6 +402,7 @@ fun FilterChips(
             selected = currentFilter == NoteFilter.ALL && selectedLabel == null,
             onClick = { onFilterSelected(NoteFilter.ALL) },
             label = { Text("All") },
+            shape = CircleShape,
             leadingIcon = if (currentFilter == NoteFilter.ALL && selectedLabel == null) {
                 { Icon(Icons.AutoMirrored.Filled.Notes, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
             } else null
@@ -414,6 +416,7 @@ fun FilterChips(
                     else onLabelSelected(label)
                 },
                 label = { Text(label) },
+                shape = CircleShape,
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
             )
         }
@@ -422,6 +425,7 @@ fun FilterChips(
             selected = currentFilter == NoteFilter.PINNED,
             onClick = { onFilterSelected(NoteFilter.PINNED) },
             label = { Text("Pinned") },
+            shape = CircleShape,
             leadingIcon = if (currentFilter == NoteFilter.PINNED) {
                 { Icon(Icons.Default.PushPin, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
             } else null
@@ -430,6 +434,7 @@ fun FilterChips(
             selected = currentFilter == NoteFilter.ARCHIVED,
             onClick = { onFilterSelected(NoteFilter.ARCHIVED) },
             label = { Text("Archived") },
+            shape = CircleShape,
             leadingIcon = if (currentFilter == NoteFilter.ARCHIVED) {
                 { Icon(Icons.Default.Archive, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
             } else null
@@ -438,6 +443,7 @@ fun FilterChips(
             selected = currentFilter == NoteFilter.DELETED,
             onClick = { onFilterSelected(NoteFilter.DELETED) },
             label = { Text("Trash") },
+            shape = CircleShape,
             leadingIcon = if (currentFilter == NoteFilter.DELETED) {
                 { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
             } else null

@@ -14,11 +14,11 @@ object NoteShapes {
     @Composable
     fun getShapeForColor(color: Color): Shape {
         return when (color.value) {
-            0xFFF28B82.toULong() -> RoundedCornerShape(topStart = 28.dp, bottomEnd = 28.dp, topEnd = 4.dp, bottomStart = 4.dp) // Red - Urgent/Sharp
-            0xFFFBBC04.toULong() -> RoundedCornerShape(16.dp) // Orange
-            0xFFFFF475.toULong() -> RoundedCornerShape(50) // Yellow - Idea/Circular
-            0xFFCCFF90.toULong() -> RoundedCornerShape(topStart = 4.dp, topEnd = 28.dp, bottomStart = 28.dp, bottomEnd = 4.dp) // Green - Growth/Leaf
-            0xFFA7FFEB.toULong() -> RoundedCornerShape(8.dp) // Teal
+            0xFFF28B82.toULong() -> RoundedCornerShape(topStart = 32.dp, bottomEnd = 32.dp, topEnd = 8.dp, bottomStart = 8.dp) // Red - Urgent/Organic
+            0xFFFBBC04.toULong() -> RoundedCornerShape(24.dp) // Orange - Softer
+            0xFFFFF475.toULong() -> RoundedCornerShape(percent = 40) // Yellow - Rounded/Organic
+            0xFFCCFF90.toULong() -> RoundedCornerShape(topStart = 8.dp, topEnd = 32.dp, bottomStart = 32.dp, bottomEnd = 8.dp) // Green - Leaf/Organic
+            0xFFA7FFEB.toULong() -> RoundedCornerShape(16.dp) // Teal - Softer
             else -> MaterialTheme.shapes.extraLarge // Default
         }
     }

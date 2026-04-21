@@ -163,6 +163,7 @@ fun NoteDetailScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     val highlightedTitle = remember(title, searchQuery) {
         if (searchQuery.isEmpty()) null
@@ -598,21 +599,6 @@ fun NoteDetailScreen(
                                     tint = contentColor
                                 )
                             }
-                            IconButton(onClick = { showDateTimePicker() }) {
-                                Icon(
-                                    if (reminderTime > 0) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
-                                    contentDescription = "Reminder",
-                                    tint = if (reminderTime > 0) MaterialTheme.colorScheme.primary else contentColor
-                                )
-                            }
-
-                            IconButton(onClick = { showColorPicker = true }) {
-                                Icon(
-                                    Icons.Default.Palette, 
-                                    contentDescription = "Color",
-                                    tint = contentColor
-                                )
-                            }
                             
                             IconButton(onClick = { 
                                 isPinned = !isPinned
@@ -624,51 +610,69 @@ fun NoteDetailScreen(
                                 )
                             }
 
-                            IconButton(onClick = {
-                                if (isLocked) {
-                                    // To unlock (disable lock), we might want to authenticate first too
-                                    requestAuthentication {
-                                        isLocked = false
-                                    }
-                                } else {
-                                    isLocked = true
+                            Box {
+                                IconButton(onClick = { showMenu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "More", tint = contentColor)
                                 }
-                            }) {
-                                Icon(
-                                    if (isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
-                                    contentDescription = "Lock",
-                                    tint = if (isLocked) MaterialTheme.colorScheme.primary else contentColor
-                                )
-                            }
-
-                            if (note != null) {
-                                IconButton(onClick = {
-                                    if (note.isDeleted) {
-                                        showDeleteDialog = true
-                                    } else {
-                                        showSoftDeleteDialog = true
-                                    }
-                                }) {
-                                    Icon(
-                                        if (note.isDeleted) Icons.Default.DeleteForever else Icons.Default.Delete,
-                                        contentDescription = if (note.isDeleted) "Delete Permanently" else "Delete",
-                                        tint = contentColor
-                                    )
-                                }
-                                
-                                if (note.isDeleted) {
-                                    IconButton(onClick = {
-                                        if (!isNavigatingBack) {
-                                            isNavigatingBack = true
-                                            viewModel.restoreNote(note.id)
-                                            onDeleteFinished()
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Reminder") },
+                                        onClick = { showMenu = false; showDateTimePicker() },
+                                        leadingIcon = {
+                                            Icon(
+                                                if (reminderTime > 0) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
+                                                contentDescription = null
+                                            )
                                         }
-                                    }) {
-                                        Icon(
-                                            Icons.Default.Restore,
-                                            contentDescription = "Restore",
-                                            tint = contentColor
-                                        )
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Change color") },
+                                        onClick = { showMenu = false; showColorPicker = true },
+                                        leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (isLocked) "Unlock note" else "Lock note") },
+                                        onClick = { 
+                                            showMenu = false
+                                            if (isLocked) {
+                                                requestAuthentication { isLocked = false }
+                                            } else {
+                                                isLocked = true
+                                            }
+                                        },
+                                        leadingIcon = { Icon(if (isLocked) Icons.Default.Lock else Icons.Default.LockOpen, contentDescription = null) }
+                                    )
+                                    
+                                    if (note != null) {
+                                        HorizontalDivider()
+                                        if (note.isDeleted) {
+                                            DropdownMenuItem(
+                                                text = { Text("Restore") },
+                                                onClick = {
+                                                    showMenu = false
+                                                    if (!isNavigatingBack) {
+                                                        isNavigatingBack = true
+                                                        viewModel.restoreNote(note.id)
+                                                        onDeleteFinished()
+                                                    }
+                                                },
+                                                leadingIcon = { Icon(Icons.Default.Restore, contentDescription = null) }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Delete Permanently") },
+                                                onClick = { showMenu = false; showDeleteDialog = true },
+                                                leadingIcon = { Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                                            )
+                                        } else {
+                                            DropdownMenuItem(
+                                                text = { Text("Delete") },
+                                                onClick = { showMenu = false; showSoftDeleteDialog = true },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -700,11 +704,11 @@ fun NoteDetailScreen(
                                     containerColor = contentColor,
                                     contentColor = animatedColor
                                 ),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Save", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                                Text("Save", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black))
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                         }
@@ -856,8 +860,8 @@ fun NoteDetailScreen(
                 TextField(
                     value = title,
                     onValueChange = { title = it },
-                    placeholder = { Text("Note Title", style = MaterialTheme.typography.headlineLarge, color = contentColor.copy(alpha = 0.3f)) },
-                    textStyle = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Black, color = contentColor),
+                    placeholder = { Text("Note Title", style = MaterialTheme.typography.displaySmall, color = contentColor.copy(alpha = 0.3f)) },
+                    textStyle = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black, color = contentColor),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
